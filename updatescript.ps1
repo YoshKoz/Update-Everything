@@ -169,7 +169,7 @@ function Write-FilteredOutput {
         if ($compact -match '^[\\/\|\-]+$') { continue }
 
         # Drop garbled/Unicode progress bar rows (block chars, regardless of whether a size suffix follows).
-        if ($compact -match '&#x393;&#xFB;|[&#x2588;&#x2593;&#x2592;&#x2591;&#x258F;&#x258E;&#x258D;&#x258C;&#x258B;&#x258A;&#x2589;&#x25A0;&#x25A1;&#x25AA;&#x25AB;]') { continue }
+        if ($compact -match 'Γû|[█▓▒░▏▎▍▌▋▊▉■□▪▫]') { continue }
 
         # Drop noisy winget "cannot be determined" info lines.
         if ($compact -match 'package\(s\) have version numbers that cannot be determined') { continue }
@@ -245,7 +245,7 @@ function Invoke-WingetWithTimeout {
 
         if (-not $exited) {
             try { $proc.Kill() } catch { }
-            throw "winget timed out after ${TimeoutSec}s &#x2014; a hanging installer may require manual intervention"
+            throw "winget timed out after ${TimeoutSec}s — a hanging installer may require manual intervention"
         }
 
         $exitCode = $proc.ExitCode
@@ -469,7 +469,7 @@ if (-not $SkipWindowsUpdate) {
                             Start-Sleep -Seconds 5
                         }
                     } else {
-                        # Unknown error &#x2014; don't retry
+                        # Unknown error — don't retry
                         throw
                     }
                 }
@@ -512,7 +512,7 @@ Invoke-Update -Name 'StoreApps' -Title 'Microsoft Store Apps' -Disabled:$SkipSto
     try {
         if (-not (Wait-Job -Job $job -Timeout $timeoutSeconds)) {
             Stop-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
-            Write-Status "Timed out after ${timeoutSeconds}s &#x2014; MDM scan unreliable without Intune enrollment (Store already covered by winget msstore)" -Type Warning
+            Write-Status "Timed out after ${timeoutSeconds}s — MDM scan unreliable without Intune enrollment (Store already covered by winget msstore)" -Type Warning
             return
         }
 
@@ -594,7 +594,7 @@ Invoke-Update -Name 'npm' -Title 'npm (Node.js)' -RequiresCommand 'npm' -Action 
     if ($outdatedJson) {
         $outdated = $outdatedJson | ConvertFrom-Json -ErrorAction SilentlyContinue
         if ($outdated -and $outdated.PSObject.Properties.Count -gt 0) {
-            # BUG FIX: was `@pkgs` (splatting syntax) &#x2014; use $pkgs so the array expands correctly
+            # BUG FIX: was `@pkgs` (splatting syntax) — use $pkgs so the array expands correctly
             $pkgs = $outdated.PSObject.Properties.Name
             Write-Host "  Updating $($pkgs.Count) package(s): $($pkgs -join ', ')" -ForegroundColor Gray
             npm install -g $pkgs 2>&1 | Out-Null
@@ -866,10 +866,10 @@ Invoke-Update -Name 'oh-my-posh' -Title 'Oh My Posh' -RequiresCommand 'oh-my-pos
     } elseif ($ompPath -like "*winget*") {
         Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray
     } elseif ($ompPath -like "*WindowsApps*") {
-        Write-Status "Installed as MSIX &#x2014; update via Microsoft Store or reinstall with winget: winget install JanDeDobbeleer.OhMyPosh" -Type Info
+        Write-Status "Installed as MSIX — update via Microsoft Store or reinstall with winget: winget install JanDeDobbeleer.OhMyPosh" -Type Info
     } else {
         $out = (oh-my-posh upgrade 2>&1 | Out-String).Trim()
-        if ($out -match '(?i)not supported|error|&#x274C;|failed') {
+        if ($out -match '(?i)not supported|error|❌|failed') {
             Write-Status "oh-my-posh upgrade failed: $out" -Type Warning
         } elseif ($out) {
             Write-Host $out -ForegroundColor Gray
@@ -943,7 +943,7 @@ Invoke-Update -Name 'juliaup' -Title 'Julia (juliaup)' -RequiresCommand 'juliaup
 Invoke-Update -Name 'pwsh-resources' -Title 'PowerShell Modules / Resources' -Disabled:$SkipPowerShellModules -Action {
     $usedProvider = $false
 
-    # PSResourceGet (modern, PS 7.4+) &#x2014; parallelize per-resource updates
+    # PSResourceGet (modern, PS 7.4+) — parallelize per-resource updates
     if ((Test-Command 'Get-InstalledPSResource') -and (Test-Command 'Update-PSResource')) {
         $usedProvider = $true
         $resources = Get-InstalledPSResource -ErrorAction SilentlyContinue
