@@ -37,6 +37,7 @@ Invoke-Update -Name 'ToolName' -Title 'Display Name' -RequiresCommand 'tool-bina
 ```
 
 **Key flags:**
+
 - `-RequiresCommand` — binary name to check; section is skipped if not found
 - `-RequiresAdmin` — skip when not running elevated
 - `-SlowOperation` — skip when `-FastMode` is used
@@ -54,7 +55,7 @@ Invoke-Update -Name 'ToolName' -Title 'Display Name' -RequiresCommand 'tool-bina
 
 Before submitting:
 
-1. Run with `-DryRun` to verify your section is detected
+1. Run in a controlled environment to verify your section is detected
 2. Run without admin to confirm `-RequiresAdmin` sections are skipped gracefully
 3. Run with `-FastMode` if your section uses `-SlowOperation`
 4. Test on a system where the tool is **not** installed to verify it's skipped

@@ -22,6 +22,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 ## Features
 
 ### Package Managers
+
 | Manager | What it does |
 |---|---|
 | **Winget** | Upgrades all packages (winget + MS Store sources) with timeout protection, automatic retry of failed packages |
@@ -29,6 +30,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 | **Chocolatey** | Upgrades all packages (requires admin) |
 
 ### Windows Components
+
 | Component | What it does |
 |---|---|
 | **Windows Update** | Installs all non-driver updates via PSWindowsUpdate with retry logic for 0x800704c7 errors |
@@ -37,6 +39,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 | **Microsoft Defender** | Updates antivirus signatures |
 
 ### Development Tools
+
 | Tool | What it does |
 |---|---|
 | **npm** | Updates npm itself and all global packages |
@@ -65,6 +68,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 | **PowerShell modules** | Updates all installed PSResources (PSResourceGet) and PowerShellGet modules, with parallel support |
 
 ### System Cleanup
+
 | Action | What it does |
 |---|---|
 | **Temp files** | Removes temp files older than 7 days |
@@ -102,36 +106,37 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YoshKoz/windows-update
 ## Usage
 
 ### Basic (run in current terminal)
+
 ```powershell
 .\updatescript.ps1
 ```
 
 ### Run elevated (opens a new UAC-prompt window)
+
 ```powershell
 .\updatescript.ps1 -AutoElevate
 ```
 
 ### Quick run (skip slow operations)
+
 ```powershell
 .\updatescript.ps1 -FastMode
 ```
 
-### Dry run (preview what would be updated)
-```powershell
-.\updatescript.ps1 -DryRun
-```
-
 ### Skip specific components
+
 ```powershell
 .\updatescript.ps1 -SkipWindowsUpdate -SkipWSL -SkipCleanup
 ```
 
 ### Schedule daily automatic updates
+
 ```powershell
 .\updatescript.ps1 -Schedule -ScheduleTime "03:00"
 ```
 
 ### Log output to file
+
 ```powershell
 .\updatescript.ps1 -LogPath "C:\Logs\update.log"
 ```
@@ -150,7 +155,6 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YoshKoz/windows-update
 | `-AutoElevate` | Switch | `$false` | Relaunch the script as Administrator (opens new window) |
 | `-NoPause` | Switch | `$false` | Skip the "Press Enter to close" prompt (for CI / VS Code) |
 | `-Parallel` | Switch | `$false` | Enable parallel updates where supported (PS7+) |
-| `-DryRun` | Switch | `$false` | Show what would be updated without making changes |
 | `-SkipWSL` | Switch | `$false` | Skip WSL kernel update |
 | `-SkipWSLDistros` | Switch | `$false` | Skip updating packages inside WSL distros |
 | `-SkipDefender` | Switch | `$false` | Skip Defender signature update |
@@ -187,12 +191,6 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YoshKoz/windows-update
 ---
 
 ## Example Output
-
-### Dry-Run Mode
-
-<p align="center">
-  <img src="assets/demo-dryrun.svg" alt="Dry-run output preview" width="820">
-</p>
 
 ### Completion Summary
 

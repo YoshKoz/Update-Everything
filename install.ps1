@@ -33,7 +33,6 @@ if ($userPath -notlike "*$installDir*") {
 
 Write-Host "`nUsage:" -ForegroundColor Cyan
 Write-Host "  updatescript.ps1                      # Run all updates"
-Write-Host "  updatescript.ps1 -DryRun              # Preview mode"
 Write-Host "  updatescript.ps1 -AutoElevate         # Run as admin"
 Write-Host "  updatescript.ps1 -Schedule            # Daily 3 AM task"
 Write-Host "  updatescript.ps1 -FastMode            # Skip slow tools"
