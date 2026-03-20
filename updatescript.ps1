@@ -5,7 +5,7 @@
     Updates all package managers, system components, and development tools.
     Supports parallel execution of independent package managers for faster runs.
 .VERSION
-    2.4.0
+    2.6.2
 .NOTES
     Run as Administrator for full functionality (some features require elevation).
     Requires PowerShell 7+ for -Parallel support.
@@ -20,6 +20,8 @@
     .\updatescript.ps1 -DeepClean
     .\updatescript.ps1 -UpdateOllamaModels
     .\updatescript.ps1 -WhatChanged
+    .\updatescript.ps1 -DryRun
+    .\updatescript.ps1 -NoParallel
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -54,16 +56,19 @@ param(
     [switch]$SkipGitLFS,                # Skip Git LFS client update
     [switch]$DeepClean,                 # Run DISM WinSxS cleanup, DO cache, and prefetch (adds ~7 min)
     [switch]$UpdateOllamaModels,        # Opt-in: pull latest for every installed Ollama model
-    [switch]$WhatChanged                # Show packages that changed since last run
+    [switch]$WhatChanged,               # Show packages that changed since last run
+    [switch]$NoParallel,                # Disable parallel execution of independent tools (PS7+)
+    [switch]$DryRun                     # Show which steps would run without executing them
 )
 
 # ── Console encoding / external tool output ─────────────────────────────────────
 try {
     $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-    [Console]::InputEncoding  = $utf8NoBom
+    [Console]::InputEncoding = $utf8NoBom
     [Console]::OutputEncoding = $utf8NoBom
     $OutputEncoding = $utf8NoBom
-} catch {
+}
+catch {
     # Best effort only; continue if host does not allow setting console encodings.
 }
 
@@ -71,34 +76,36 @@ try {
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin -and $AutoElevate -and -not $NoElevate) {
     $params = @()
-    if ($SkipWindowsUpdate)     { $params += '-SkipWindowsUpdate' }
-    if ($SkipReboot)            { $params += '-SkipReboot' }
-    if ($SkipDestructive)       { $params += '-SkipDestructive' }
-    if ($FastMode)              { $params += '-FastMode' }
-    if ($Parallel)              { $params += '-Parallel' }
-    if ($SkipWSL)               { $params += '-SkipWSL' }
-    if ($SkipWSLDistros)        { $params += '-SkipWSLDistros' }
-    if ($SkipDefender)          { $params += '-SkipDefender' }
-    if ($SkipStoreApps)         { $params += '-SkipStoreApps' }
-    if ($SkipUVTools)           { $params += '-SkipUVTools' }
-    if ($SkipVSCodeExtensions)  { $params += '-SkipVSCodeExtensions' }
-    if ($SkipPoetry)            { $params += '-SkipPoetry' }
-    if ($SkipComposer)          { $params += '-SkipComposer' }
-    if ($SkipRuby)              { $params += '-SkipRuby' }
+    if ($SkipWindowsUpdate) { $params += '-SkipWindowsUpdate' }
+    if ($SkipReboot) { $params += '-SkipReboot' }
+    if ($SkipDestructive) { $params += '-SkipDestructive' }
+    if ($FastMode) { $params += '-FastMode' }
+    if ($Parallel) { $params += '-Parallel' }
+    if ($SkipWSL) { $params += '-SkipWSL' }
+    if ($SkipWSLDistros) { $params += '-SkipWSLDistros' }
+    if ($SkipDefender) { $params += '-SkipDefender' }
+    if ($SkipStoreApps) { $params += '-SkipStoreApps' }
+    if ($SkipUVTools) { $params += '-SkipUVTools' }
+    if ($SkipVSCodeExtensions) { $params += '-SkipVSCodeExtensions' }
+    if ($SkipPoetry) { $params += '-SkipPoetry' }
+    if ($SkipComposer) { $params += '-SkipComposer' }
+    if ($SkipRuby) { $params += '-SkipRuby' }
     if ($SkipPowerShellModules) { $params += '-SkipPowerShellModules' }
-    if ($SkipCleanup)               { $params += '-SkipCleanup' }
-    if ($NoPause)                   { $params += '-NoPause' }
-    if ($WingetTimeoutSec -ne 300)  { $params += @('-WingetTimeoutSec', $WingetTimeoutSec) }
-    if ($AutoElevate)               { $params += '-AutoElevate' }
-    if ($LogPath)                   { $params += @('-LogPath', $LogPath) }
-    if ($SkipNode)                  { $params += '-SkipNode' }
-    if ($SkipRust)                  { $params += '-SkipRust' }
-    if ($SkipGo)                    { $params += '-SkipGo' }
-    if ($SkipFlutter)               { $params += '-SkipFlutter' }
-    if ($SkipGitLFS)                { $params += '-SkipGitLFS' }
-    if ($DeepClean)                 { $params += '-DeepClean' }
-    if ($UpdateOllamaModels)            { $params += '-UpdateOllamaModels' }
-    if ($WhatChanged)                   { $params += '-WhatChanged' }
+    if ($SkipCleanup) { $params += '-SkipCleanup' }
+    if ($NoPause) { $params += '-NoPause' }
+    if ($WingetTimeoutSec -ne 300) { $params += @('-WingetTimeoutSec', $WingetTimeoutSec) }
+    if ($AutoElevate) { $params += '-AutoElevate' }
+    if ($LogPath) { $params += @('-LogPath', $LogPath) }
+    if ($SkipNode) { $params += '-SkipNode' }
+    if ($SkipRust) { $params += '-SkipRust' }
+    if ($SkipGo) { $params += '-SkipGo' }
+    if ($SkipFlutter) { $params += '-SkipFlutter' }
+    if ($SkipGitLFS) { $params += '-SkipGitLFS' }
+    if ($DeepClean) { $params += '-DeepClean' }
+    if ($UpdateOllamaModels) { $params += '-UpdateOllamaModels' }
+    if ($WhatChanged) { $params += '-WhatChanged' }
+    if ($NoParallel) { $params += '-NoParallel' }
+    if ($DryRun) { $params += '-DryRun' }
 
     $pwshArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath) + $params
     try {
@@ -106,15 +113,18 @@ if (-not $isAdmin -and $AutoElevate -and -not $NoElevate) {
 
         if ($pwshCmd) {
             Start-Process -FilePath $pwshCmd.Source -Verb RunAs -ArgumentList $pwshArgs -Wait
-        } else {
+        }
+        else {
             Write-Host "WARNING: pwsh.exe not found. Falling back to Windows PowerShell." -ForegroundColor Yellow
             Start-Process powershell -Verb RunAs -ArgumentList $pwshArgs -Wait
         }
         exit
-    } catch {
+    }
+    catch {
         Write-Host "WARNING: Could not elevate. Running without Administrator privileges.`n" -ForegroundColor Yellow
     }
-} elseif (-not $isAdmin -and -not $NoElevate) {
+}
+elseif (-not $isAdmin -and -not $NoElevate) {
     Write-Host "INFO: Running in the current terminal without elevation (admin-only tasks may be skipped)." -ForegroundColor DarkYellow
     Write-Host "      To run elevated, start the terminal as Administrator or use -AutoElevate (opens a new window)." -ForegroundColor DarkYellow
 }
@@ -122,9 +132,9 @@ if (-not $isAdmin -and $AutoElevate -and -not $NoElevate) {
 # ── Scheduled task registration ─────────────────────────────────────────────────
 if ($Schedule) {
     $taskName = "DailySystemUpdate"
-    $action   = New-ScheduledTaskAction -Execute 'pwsh.exe' `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SkipReboot"
-    $trigger  = New-ScheduledTaskTrigger -Daily -At $ScheduleTime
+    $action = New-ScheduledTaskAction -Execute 'pwsh.exe' `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SkipReboot -SkipWindowsUpdate"
+    $trigger = New-ScheduledTaskTrigger -Daily -At $ScheduleTime
     $settings = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
         -Settings $settings -RunLevel Highest -Force | Out-Null
@@ -133,8 +143,9 @@ if ($Schedule) {
 }
 
 $ErrorActionPreference = "Continue"
-$startTime    = Get-Date
+$startTime = Get-Date
 $commandCache = @{}
+$script:sectionTimings = [ordered]@{}      # Name -> elapsed seconds
 
 # ── Helper functions ─────────────────────────────────────────────────────────────
 
@@ -153,15 +164,67 @@ function Test-Command([string]$Command) {
     return $result
 }
 
+function Get-VSCodeCliPath {
+    # Always prefer the CLI shim (.cmd) to avoid launching Code.exe UI windows.
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\bin\code.cmd'),
+        (Join-Path $env:ProgramFiles 'Microsoft VS Code\bin\code.cmd'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft VS Code\bin\code.cmd'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code Insiders\bin\code-insiders.cmd'),
+        (Join-Path $env:ProgramFiles 'Microsoft VS Code Insiders\bin\code-insiders.cmd'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft VS Code Insiders\bin\code-insiders.cmd')
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    if ($candidates.Count -gt 0) { return $candidates[0] }
+
+    foreach ($name in @('code.cmd', 'code-insiders.cmd')) {
+        $cmd = Get-Command $name -ErrorAction SilentlyContinue
+        if ($cmd -and $cmd.Source -and (Test-Path $cmd.Source)) { return $cmd.Source }
+    }
+
+    return $null
+}
+
 function Write-Status {
     param(
         [string]$Message,
         [ValidateSet('Success', 'Warning', 'Error', 'Info')]
         [string]$Type = 'Info'
     )
-    $colors  = @{ Success = 'Green'; Warning = 'Yellow'; Error = 'Red'; Info = 'Gray' }
-    $symbols = @{ Success = '[OK]';  Warning = '[!]';    Error = '[X]'; Info = '[*]'  }
+    $colors = @{ Success = 'Green'; Warning = 'Yellow'; Error = 'Red'; Info = 'Gray' }
+    $symbols = @{ Success = '[OK]'; Warning = '[!]'; Error = '[X]'; Info = '[*]' }
     Write-Host "$($symbols[$Type]) $Message" -ForegroundColor $colors[$Type]
+}
+
+function Write-Detail {
+    param(
+        [string]$Message,
+        [ValidateSet('Info', 'Muted', 'Warning', 'Error')]
+        [string]$Type = 'Info'
+    )
+
+    $colors = @{ Info = 'Gray'; Muted = 'DarkGray'; Warning = 'Yellow'; Error = 'Red' }
+    $prefixes = @{ Info = '  >'; Muted = '  -'; Warning = '  !'; Error = '  x' }
+    Write-Host "$($prefixes[$Type]) $Message" -ForegroundColor $colors[$Type]
+}
+
+function Write-IndentedOutput {
+    param(
+        [AllowNull()][string]$Text,
+        [string]$Prefix = '  >',
+        [ConsoleColor]$Color = [ConsoleColor]::Gray
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) { return }
+
+    $normalized = $Text -replace '\x1b\[[0-9;?]*[ -/]*[@-~]', ''
+    $normalized = $normalized -replace "`r", "`n"
+
+    foreach ($rawLine in ($normalized -split "`n")) {
+        $line = $rawLine.Trim()
+        if (-not $line) { continue }
+        Write-Host "$Prefix $line" -ForegroundColor $Color
+    }
 }
 
 function Write-FilteredOutput {
@@ -190,6 +253,9 @@ function Write-FilteredOutput {
 
         # Drop noisy winget "cannot be determined" info lines.
         if ($compact -match 'package\(s\) have version numbers that cannot be determined') { continue }
+
+        # Drop table separators and blank winget headers that add noise without new information.
+        if ($compact -match '^[\-=]{6,}$') { continue }
 
         Write-Host $line -ForegroundColor $Color
     }
@@ -266,12 +332,13 @@ function Invoke-WingetWithTimeout {
         }
 
         $exitCode = $proc.ExitCode
-        $stdout   = Get-Content -Raw -Path $stdoutFile -ErrorAction SilentlyContinue
-        $stderr   = Get-Content -Raw -Path $stderrFile -ErrorAction SilentlyContinue
+        $stdout = Get-Content -Raw -Path $stdoutFile -ErrorAction SilentlyContinue
+        $stderr = Get-Content -Raw -Path $stderrFile -ErrorAction SilentlyContinue
         $combined = (($stdout + $stderr) -replace '\x00', '').Trim()
 
         return [pscustomobject]@{ Output = $combined; ExitCode = $exitCode }
-    } finally {
+    }
+    finally {
         Remove-Item $stdoutFile, $stderrFile -Force -ErrorAction SilentlyContinue
     }
 }
@@ -294,6 +361,38 @@ $script:WingetUpgradeHooks = @{
         Post = {
             if ($script:_spotifyWasRunning) {
                 Start-Process "$env:APPDATA\Spotify\Spotify.exe" -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    'Microsoft.VisualStudioCode' = @{
+        Pre  = {
+            $script:_vscodeWasRunning = [bool](Get-Process -Name 'Code' -ErrorAction SilentlyContinue)
+            if ($script:_vscodeWasRunning) {
+                Write-Host "  Closing VS Code for upgrade..." -ForegroundColor Gray
+                Stop-Process -Name 'Code' -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 3
+            }
+        }
+        Post = {
+            if ($script:_vscodeWasRunning) {
+                $codePath = Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\Code.exe'
+                if (Test-Path $codePath) { Start-Process $codePath -ErrorAction SilentlyContinue }
+            }
+        }
+    }
+    'Microsoft.VisualStudioCode.Insiders' = @{
+        Pre  = {
+            $script:_vscodeInsidersWasRunning = [bool](Get-Process -Name 'Code - Insiders' -ErrorAction SilentlyContinue)
+            if ($script:_vscodeInsidersWasRunning) {
+                Write-Host "  Closing VS Code Insiders for upgrade..." -ForegroundColor Gray
+                Stop-Process -Name 'Code - Insiders' -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 3
+            }
+        }
+        Post = {
+            if ($script:_vscodeInsidersWasRunning) {
+                $codePath = Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code Insiders\Code - Insiders.exe'
+                if (Test-Path $codePath) { Start-Process $codePath -ErrorAction SilentlyContinue }
             }
         }
     }
@@ -328,14 +427,15 @@ if ($LogPath) {
         if ($logDir) { New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue | Out-Null }
         Start-Transcript -Path $LogPath -Append -Force | Out-Null
         $transcriptStarted = $true
-    } catch {
+    }
+    catch {
         Write-Host "WARNING: Could not start transcript at $LogPath. $_" -ForegroundColor Yellow
     }
 }
 
 # ── Startup banner ───────────────────────────────────────────────────────────────
 Write-Host "`n$('=' * 54)" -ForegroundColor DarkGray
-Write-Host "  Update-Everything v2.4.0  |  $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -ForegroundColor Cyan
+Write-Host "  Update-Everything v2.6.2  |  $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -ForegroundColor Cyan
 Write-Host "  $(if ($isAdmin) { 'Running as Administrator' } else { 'Running as standard user (some tasks skipped)' })" -ForegroundColor $(if ($isAdmin) { 'Green' } else { 'Yellow' })
 Write-Host "$('=' * 54)" -ForegroundColor DarkGray
 
@@ -357,11 +457,16 @@ function Invoke-Update {
     # Helper to record a skip with a reason
     $addSkip = { param([string]$r) $updateResults.Skipped.Add([pscustomobject]@{ Name = $Name; Reason = $r }) }
 
-    if ($Disabled)                                                                          { & $addSkip 'flag'; return }
-    if ($RequiresCommand -and -not (Test-Command $RequiresCommand))                         { & $addSkip 'not installed'; return }
+    if ($Disabled) { & $addSkip 'flag'; return }
+    if ($RequiresCommand -and -not (Test-Command $RequiresCommand)) { & $addSkip 'not installed'; return }
     if ($RequiresAnyCommand -and -not ($RequiresAnyCommand | Where-Object { Test-Command $_ } | Select-Object -First 1)) { & $addSkip 'not installed'; return }
-    if ($RequiresAdmin -and -not $isAdmin)                                                  { & $addSkip 'requires admin'; return }
-    if ($SlowOperation -and $FastMode)                                                      { & $addSkip 'fast mode'; return }
+    if ($RequiresAdmin -and -not $isAdmin) { & $addSkip 'requires admin'; return }
+    if ($SlowOperation -and $FastMode) { & $addSkip 'fast mode'; return }
+
+    if ($DryRun) {
+        Write-Host "  [DryRun] Would run: $Title" -ForegroundColor DarkCyan
+        return
+    }
 
     $sectionStart = Get-Date
     if (-not $NoSection) { Write-Section $Title }
@@ -371,9 +476,202 @@ function Invoke-Update {
         $elapsed = ((Get-Date) - $sectionStart).TotalSeconds
         Write-Status ("$Name updated ({0:F1}s)" -f $elapsed) -Type Success
         $updateResults.Success.Add($Name)
-    } catch {
+        $script:sectionTimings[$Name] = $elapsed
+    }
+    catch {
         Write-Status "$Name failed: $_" -Type Error
         $updateResults.Failed.Add($Name)
+    }
+}
+
+# ── Parallel update runner ───────────────────────────────────────────────────────
+function Invoke-UpdateParallel {
+    <#
+    .SYNOPSIS
+        Runs multiple update sections in parallel using Start-Job.
+        Each section must be self-contained (no calls to parent script functions).
+        Falls back to sequential if -NoParallel is set or PS version < 7.
+    .PARAMETER Sections
+        Array of hashtables: @{ Name; Title; RequiresCommand; RequiresAnyCommand; Disabled; SlowOperation; Action }
+    #>
+    param([hashtable[]]$Sections)
+
+    # Sequential fallback
+    if ($NoParallel -or $PSVersionTable.PSVersion.Major -lt 7) {
+        foreach ($sec in $Sections) {
+            $invokeArgs = @{ Name = $sec.Name; Action = $sec.Action }
+            if ($sec.Title) { $invokeArgs['Title'] = $sec.Title }
+            if ($sec.RequiresCommand) { $invokeArgs['RequiresCommand'] = $sec.RequiresCommand }
+            if ($sec.RequiresAnyCommand) { $invokeArgs['RequiresAnyCommand'] = $sec.RequiresAnyCommand }
+            if ($sec.ContainsKey('Disabled')) { $invokeArgs['Disabled'] = $sec.Disabled }
+            if ($sec.ContainsKey('SlowOperation')) { $invokeArgs['SlowOperation'] = $sec.SlowOperation }
+            Invoke-Update @invokeArgs
+        }
+        return
+    }
+
+    # Parallel path: Start-ThreadJob per section, collect output in order
+    # Serialize helper functions so thread jobs can call them
+    $fnInit = [scriptblock]::Create(@"
+`$commandCache = @{}
+function Test-Command([string]`$c) {
+    if (`$commandCache.ContainsKey(`$c)) { return `$commandCache[`$c] }
+    `$r = [bool](Get-Command `$c -ErrorAction SilentlyContinue)
+    `$commandCache[`$c] = `$r; return `$r
+}
+function Write-Section([string]`$Title, [double]`$ElapsedSeconds = 0) {
+    `$e = if (`$ElapsedSeconds -gt 0) { '  ({0:F1}s)' -f `$ElapsedSeconds } else { '' }
+    Write-Host "``n`$('=' * 54)" -ForegroundColor DarkGray
+    Write-Host " `$Title`$e"      -ForegroundColor Cyan
+    Write-Host "`$('=' * 54)"     -ForegroundColor DarkGray
+}
+function Write-Status([string]`$Message, [ValidateSet('Success','Warning','Error','Info')][string]`$Type='Info') {
+    `$c = @{ Success='Green'; Warning='Yellow'; Error='Red'; Info='Gray' }
+    `$s = @{ Success='[OK]';  Warning='[!]';    Error='[X]'; Info='[*]' }
+    Write-Host "`$(`$s[`$Type]) `$Message" -ForegroundColor `$c[`$Type]
+}
+function Write-FilteredOutput([AllowNull()][string]`$Text, [ConsoleColor]`$Color = [ConsoleColor]::Gray) {
+    if ([string]::IsNullOrWhiteSpace(`$Text)) { return }
+    `$n = (`$Text -replace '\x1b\[[0-9;?]*[ -/]*[@-~]', '') -replace '`r', '`n'
+    foreach (`$raw in (`$n -split '`n')) {
+        `$l = `$raw.TrimEnd(); if (-not `$l) { continue }
+        `$c2 = `$l.Trim()
+        if (`$c2 -match '^[\\\/\|\-]+`$')                                                            { continue }
+        if (`$c2 -match '[█▓▒░▏▎▍▌▋▊▉■□▪▫]')                                                       { continue }
+        if (`$c2 -match 'package\(s\) have version numbers that cannot be determined')               { continue }
+        Write-Host `$l -ForegroundColor `$Color
+    }
+}
+function Invoke-WingetWithTimeout {
+    param([string[]]`$Arguments, [int]`$TimeoutSec = 300)
+    `$outFile = [System.IO.Path]::GetTempFileName()
+    `$errFile = [System.IO.Path]::GetTempFileName()
+    try {
+        `$proc = Start-Process -FilePath 'winget' -ArgumentList `$Arguments ``
+            -RedirectStandardOutput `$outFile -RedirectStandardError `$errFile -NoNewWindow -PassThru
+        `$exited = `$proc.WaitForExit(`$TimeoutSec * 1000)
+        if (-not `$exited) { try { `$proc.Kill() } catch { }; throw "winget timed out after `${TimeoutSec}s" }
+        `$combined = ((Get-Content -Raw `$outFile -ErrorAction SilentlyContinue) + (Get-Content -Raw `$errFile -ErrorAction SilentlyContinue) -replace '\x00','').Trim()
+        return [pscustomobject]@{ Output = `$combined; ExitCode = `$proc.ExitCode }
+    } finally { Remove-Item `$outFile, `$errFile -Force -ErrorAction SilentlyContinue }
+}
+"@)
+
+    $jobs = [ordered]@{}   # Name -> Job
+    $jobTitles = @{}            # Name -> Title
+
+    foreach ($sec in $Sections) {
+        $name = $sec.Name
+        $title = if ($sec.Title) { $sec.Title } else { $name }
+        $jobTitles[$name] = $title
+
+        # Apply guards (same as Invoke-Update)
+        if ($sec.Disabled) {
+            $script:updateResults.Skipped.Add([pscustomobject]@{ Name = $name; Reason = 'flag' })
+            continue
+        }
+        if ($sec.RequiresCommand -and -not (Test-Command $sec.RequiresCommand)) {
+            $script:updateResults.Skipped.Add([pscustomobject]@{ Name = $name; Reason = 'not installed' })
+            continue
+        }
+        if ($sec.RequiresAnyCommand) {
+            $anyFound = $sec.RequiresAnyCommand | Where-Object { Test-Command $_ } | Select-Object -First 1
+            if (-not $anyFound) {
+                $script:updateResults.Skipped.Add([pscustomobject]@{ Name = $name; Reason = 'not installed' })
+                continue
+            }
+        }
+        if ($sec.SlowOperation -and $FastMode) {
+            $script:updateResults.Skipped.Add([pscustomobject]@{ Name = $name; Reason = 'fast mode' })
+            continue
+        }
+        if ($DryRun) {
+            Write-Host "  [DryRun] Would run: $title" -ForegroundColor DarkCyan
+            continue
+        }
+
+        $actionStr = $sec.Action.ToString()   # pass as string; rebuilt with Create() in the thread job
+        $secName = $name
+        $secTitle = $title
+        # Variables the action blocks may reference
+        $varTable = @{
+            WingetTimeoutSec = $WingetTimeoutSec
+            SkipDestructive  = [bool]$SkipDestructive
+            pythonCmd        = $pythonCmd
+        }
+        $jobs[$name] = Start-ThreadJob -Name "update-$name" `
+            -InitializationScript $fnInit `
+            -ScriptBlock {
+            param($actionStr, $secName, $secTitle, $varTable)
+            # Inject needed script-scope variables so actions can use them directly
+            foreach ($kv in $varTable.GetEnumerator()) { Set-Variable -Name $kv.Key -Value $kv.Value }
+            # Reconstruct the scriptblock natively in this runspace so cmdlets resolve correctly
+            $action = [ScriptBlock]::Create($actionStr)
+            $t = Get-Date
+            Write-Section $secTitle
+            try {
+                & $action
+                $elapsed = ((Get-Date) - $t).TotalSeconds
+                Write-Status ("{0} updated ({1:F1}s)" -f $secName, $elapsed) -Type Success
+                # sentinel on stdout so main thread knows elapsed
+                "__TIMING__${secName}__${elapsed}"
+            }
+            catch {
+                Write-Host "[X] $secName failed: $($_.Exception.Message)" -ForegroundColor Red
+                "__FAILED__${secName}"
+            }
+        } -ArgumentList $actionStr, $secName, $secTitle, $varTable
+    }
+
+    if ($jobs.Count -eq 0) { return }
+
+    $null = Wait-Job -Job @($jobs.Values) -Timeout 300
+
+    foreach ($name in $jobs.Keys) {
+        $job = $jobs[$name]
+
+        # Replay Information-stream items (Write-Host calls from thread job)
+        $rawItems = Receive-Job $job -ErrorAction SilentlyContinue 2>&1 6>&1
+        foreach ($item in $rawItems) {
+            if ($item -is [System.Management.Automation.InformationRecord]) {
+                $hm = $item.MessageData
+                if ($hm -is [System.Management.Automation.HostInformationMessage]) {
+                    # ForegroundColor can be null or -1 in thread jobs — fall back to Gray safely
+                    $fg = try {
+                        $c = $hm.ForegroundColor
+                        if ($null -ne $c -and [int]$c -ge 0 -and [int]$c -le 15) { [ConsoleColor]$c }
+                        else { [ConsoleColor]::Gray }
+                    }
+                    catch { [ConsoleColor]::Gray }
+                    try { Write-Host $hm.Message -ForegroundColor $fg -NoNewline:$hm.NoNewLine }
+                    catch { Write-Host $hm.Message }
+                }
+                else {
+                    Write-Host $hm.ToString()
+                }
+            }
+            elseif ($item -is [string]) {
+                if ($item -match '^__TIMING__(.+)__([0-9.,]+)$') {
+                    $sn = $Matches[1]; $el = [double]($Matches[2] -replace ',', '.')
+                    $script:updateResults.Success.Add($sn)
+                    $script:sectionTimings[$sn] = $el
+                }
+                elseif ($item -match '^__FAILED__(.+)$') {
+                    $script:updateResults.Failed.Add($Matches[1])
+                }
+                # control strings are not printed
+            }
+            elseif ($null -ne $item) {
+                try { Write-Host ($item | Out-String).TrimEnd() } catch { }
+            }
+        }
+
+        if ($job.State -eq 'Running') {
+            Stop-Job $job -ErrorAction SilentlyContinue
+            Write-Status "$name timed out" -Type Warning
+            $script:updateResults.Failed.Add($name)
+        }
+        Remove-Job $job -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -383,27 +681,44 @@ function Invoke-Update {
 
 # ── Scoop ────────────────────────────────────────────────────────────────────────
 Invoke-Update -Name 'Scoop' -RequiresCommand 'scoop' -Action {
-    scoop update 2>&1 | Out-Null
+    $scoopSelfOut = (scoop update 2>&1 | Out-String).Trim()
+    if ($scoopSelfOut -match '(?i)error|failed') { Write-Status "Scoop self-update warning: $scoopSelfOut" -Type Warning }
     $out = (scoop update '*' 2>&1 | Out-String).Trim()
     Write-FilteredOutput $out
     scoop cleanup '*' 2>&1 | Out-Null
     scoop cache rm '*' 2>&1 | Out-Null
 }
 
+# Packages known to require a reboot to complete — retrying with --force can leave them broken.
+$script:WingetRetryBlocklist = @(
+    'Microsoft.VCRedist.2015+.x64',
+    'Microsoft.VCRedist.2015+.x86',
+    'Microsoft.DotNet.Runtime.8',
+    'Microsoft.DotNet.Runtime.9',
+    'Microsoft.DotNet.DesktopRuntime.8',
+    'Microsoft.DotNet.DesktopRuntime.9',
+    'Microsoft.WindowsTerminal'
+)
+
 # ── Winget ───────────────────────────────────────────────────────────────────────
 Invoke-Update -Name 'Winget' -RequiresCommand 'winget' -Action {
     $bulkHadFailures = $false
     $retryIds = [System.Collections.Generic.List[string]]::new()
 
+    # Refresh package sources to ensure the latest catalog is available
+    Write-Host "  Refreshing winget sources..." -ForegroundColor Gray
+    try { Invoke-WingetWithTimeout -TimeoutSec 60 -Arguments @('source', 'update') | Out-Null } catch { }
+
     # Run Pre hooks for packages with known conflicts (e.g. Spotify exit-code 23)
     try {
         $pendingCheck = Invoke-WingetWithTimeout -TimeoutSec 60 -Arguments @(
-            'upgrade', '--source', 'winget', '--accept-source-agreements', '--disable-interactivity'
+            'upgrade', '--include-unknown', '--source', 'winget', '--accept-source-agreements', '--disable-interactivity'
         )
         Invoke-WingetUpgradeHooks -Phase 'Pre' -WingetOutput $pendingCheck.Output
-    } catch { }   # best-effort; don't block upgrades if list fails
+    }
+    catch { }   # best-effort; don't block upgrades if list fails
 
-    # Standard winget source
+    # Standard winget source — known-version packages only (safe, no unnecessary reinstalls)
     Write-Host "  Upgrading all (winget source, timeout: ${WingetTimeoutSec}s)..." -ForegroundColor Gray
     try {
         $result = Invoke-WingetWithTimeout -TimeoutSec $WingetTimeoutSec -Arguments @(
@@ -416,10 +731,72 @@ Invoke-Update -Name 'Winget' -RequiresCommand 'winget' -Action {
             if (-not $retryIds.Contains($id)) { $retryIds.Add($id) }
         }
         if ($result.ExitCode -ne 0 -or $result.Output -match 'Installer failed with exit code') { $bulkHadFailures = $true }
-    } catch {
+    }
+    catch {
         Write-Status "Winget (winget source): $_" -Type Warning
         $bulkHadFailures = $true
     }
+
+    # Unknown-version packages — only upgrade when a NEW Available version appears.
+    # Winget can't detect the installed version for some apps (e.g. Node.js, ImageMagick).
+    # We track which Available version we last upgraded to and skip if unchanged.
+    $unknownStateFile = Join-Path (Join-Path $env:LOCALAPPDATA 'Update-Everything') 'unknown_versions.json'
+    $unknownState = @{}
+    if (Test-Path $unknownStateFile) {
+        try { $unknownState = Get-Content $unknownStateFile -Raw | ConvertFrom-Json -AsHashtable } catch { $unknownState = @{} }
+    }
+    try {
+        $unknownCheck = Invoke-WingetWithTimeout -TimeoutSec 60 -Arguments @(
+            'upgrade', '--include-unknown', '--source', 'winget',
+            '--accept-source-agreements', '--disable-interactivity'
+        )
+        # Parse unknown-version entries: lines where the Version column is "Unknown"
+        # Winget IDs always contain dots (publisher.package), so we anchor on that pattern.
+        $unknownPkgs = @()
+        foreach ($line in ($unknownCheck.Output -split '\r?\n')) {
+            if ($line -match '^\s*(.+?)\s+(\S+\.\S+)\s+Unknown\s+(\S+)\s*$') {
+                $unknownPkgs += [pscustomobject]@{ Id = $Matches[2]; Available = $Matches[3] }
+            }
+        }
+        if ($unknownPkgs.Count -gt 0) {
+            $toUpgrade = @()
+            foreach ($pkg in $unknownPkgs) {
+                $prev = $unknownState[$pkg.Id]
+                if ($prev -ne $pkg.Available) {
+                    $toUpgrade += $pkg
+                }
+            }
+            if ($toUpgrade.Count -gt 0) {
+                Write-Host "  Upgrading $($toUpgrade.Count) unknown-version package(s)..." -ForegroundColor Gray
+                foreach ($pkg in $toUpgrade) {
+                    Write-Host "    $($pkg.Id) → $($pkg.Available) (installed version unknown)" -ForegroundColor Gray
+                    try {
+                        $upResult = Invoke-WingetWithTimeout -TimeoutSec $WingetTimeoutSec -Arguments @(
+                            'upgrade', '--id', $pkg.Id,
+                            '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity'
+                        )
+                        Write-FilteredOutput $upResult.Output
+                        # Record the version we just installed
+                        $unknownState[$pkg.Id] = $pkg.Available
+                    }
+                    catch {
+                        Write-Status "  Unknown-version upgrade of $($pkg.Id) failed: $_" -Type Warning
+                    }
+                }
+            }
+            else {
+                Write-Host "  $($unknownPkgs.Count) unknown-version package(s) already at latest available version" -ForegroundColor Gray
+            }
+            # Save state
+            try {
+                $dir = Split-Path $unknownStateFile
+                New-Item -ItemType Directory -Path $dir -Force -ErrorAction SilentlyContinue | Out-Null
+                $unknownState | ConvertTo-Json -Compress | Set-Content -Path $unknownStateFile -Force
+            }
+            catch { }
+        }
+    }
+    catch { }
 
     # MS Store source (skipped when -SkipStoreApps)
     if (-not $SkipStoreApps) {
@@ -441,7 +818,8 @@ Invoke-Update -Name 'Winget' -RequiresCommand 'winget' -Action {
                 }
                 if ($storeResult.ExitCode -ne 0 -or $storeResult.Output -match 'Installer failed with exit code') { $bulkHadFailures = $true }
             }
-        } catch {
+        }
+        catch {
             Write-Status "Winget (msstore source): $_" -Type Warning
         }
     }
@@ -450,6 +828,10 @@ Invoke-Update -Name 'Winget' -RequiresCommand 'winget' -Action {
     if ($retryIds.Count -gt 0) {
         Write-Host "  Retrying $($retryIds.Count) failed package(s) individually..." -ForegroundColor Gray
         foreach ($pkgId in $retryIds) {
+            if ($script:WingetRetryBlocklist -contains $pkgId) {
+                Write-Status "  Skipping retry for $pkgId (blocklisted — may require reboot)" -Type Warning
+                continue
+            }
             Write-Host "    Updating $pkgId..." -ForegroundColor Gray
             try {
                 Invoke-WingetWithTimeout -TimeoutSec $WingetTimeoutSec -Arguments @(
@@ -457,11 +839,13 @@ Invoke-Update -Name 'Winget' -RequiresCommand 'winget' -Action {
                     '--accept-source-agreements', '--accept-package-agreements',
                     '--disable-interactivity', '--force'
                 ) | Out-Null
-            } catch {
+            }
+            catch {
                 Write-Status "  Retry of $pkgId timed out or failed: $_" -Type Warning
             }
         }
-    } elseif ($bulkHadFailures) {
+    }
+    elseif ($bulkHadFailures) {
         Write-Status 'Winget reported a bulk failure, but no specific failed package IDs were detected for retry' -Type Warning
     }
 }
@@ -469,8 +853,8 @@ Invoke-Update -Name 'Winget' -RequiresCommand 'winget' -Action {
 # Save a winget package snapshot for -WhatChanged diffing
 $script:WingetSnapshotDir = Join-Path $env:LOCALAPPDATA 'Update-Everything'
 $script:WingetSnapshotCurrent = Join-Path $script:WingetSnapshotDir 'update_log.txt'
-$script:WingetSnapshotPrev    = Join-Path $script:WingetSnapshotDir 'update_log_prev.txt'
-if (Test-Command 'winget') {
+$script:WingetSnapshotPrev = Join-Path $script:WingetSnapshotDir 'update_log_prev.txt'
+if ((-not $DryRun) -and (Test-Command 'winget')) {
     try {
         New-Item -ItemType Directory -Path $script:WingetSnapshotDir -Force -ErrorAction SilentlyContinue | Out-Null
         # Rotate: current -> prev
@@ -482,12 +866,13 @@ if (Test-Command 'winget') {
         if ($listResult.Output) {
             Set-Content -Path $script:WingetSnapshotCurrent -Value $listResult.Output -Force
         }
-    } catch {
+    }
+    catch {
         Write-Verbose "Could not save winget snapshot: $_"
     }
 }
 
-# ── Chocolatey ───────────────────────────────────────────────────────────────────
+# ── Sequential: Chocolatey (admin-only) ─────────────────────────────────────────
 Invoke-Update -Name 'Chocolatey' -RequiresCommand 'choco' -RequiresAdmin -Action {
     $out = (choco upgrade all -y 2>&1 | Out-String).Trim()
     Write-FilteredOutput $out
@@ -499,7 +884,10 @@ Invoke-Update -Name 'Chocolatey' -RequiresCommand 'choco' -RequiresAdmin -Action
 
 # ── Windows Update ───────────────────────────────────────────────────────────────
 if (-not $SkipWindowsUpdate) {
-    if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
+    if (-not $isAdmin) {
+        $updateResults.Skipped.Add([pscustomobject]@{ Name = 'WindowsUpdate'; Reason = 'requires admin' })
+    }
+    elseif (Get-Module -ListAvailable -Name PSWindowsUpdate) {
         Invoke-Update -Name 'WindowsUpdate' -Title 'Windows Update' -RequiresAdmin -Action {
             Import-Module PSWindowsUpdate
 
@@ -507,8 +895,8 @@ if (-not $SkipWindowsUpdate) {
             # due to a pending reboot or -AutoReboot conflicting with the install.
             # Fix: use -IgnoreReboot during install, then handle reboot separately.
             $maxRetries = 2
-            $attempt    = 0
-            $succeeded  = $false
+            $attempt = 0
+            $succeeded = $false
 
             while ($attempt -lt $maxRetries -and -not $succeeded) {
                 $attempt++
@@ -516,25 +904,27 @@ if (-not $SkipWindowsUpdate) {
                     # IgnoreReboot prevents the WU agent from self-cancelling mid-install.
                     # RecurseCycle handles chained dependencies that require multiple passes.
                     $wuParams = @{
-                        Install       = $true
-                        AcceptAll     = $true
-                        NotCategory   = 'Drivers'
-                        IgnoreReboot  = $true
-                        RecurseCycle  = 3
-                        Verbose       = $false
-                        Confirm       = $false
+                        Install      = $true
+                        AcceptAll    = $true
+                        NotCategory  = 'Drivers'
+                        IgnoreReboot = $true
+                        RecurseCycle = 3
+                        Verbose      = $false
+                        Confirm      = $false
                     }
                     $results = Get-WindowsUpdate @wuParams
 
                     if ($results) {
                         Write-Host "  Installed $($results.Count) update(s)." -ForegroundColor Gray
-                    } else {
+                    }
+                    else {
                         Write-Host "  No updates available." -ForegroundColor Gray
                     }
                     $succeeded = $true
-                } catch {
+                }
+                catch {
                     $hresult = $_.Exception.HResult
-                    $msg     = $_.Exception.Message
+                    $msg = $_.Exception.Message
 
                     # 0x800704c7 = -2147023673 (ERROR_CANCELLED)
                     if ($hresult -eq -2147023673 -or $msg -match '0x800704c7') {
@@ -545,7 +935,8 @@ if (-not $SkipWindowsUpdate) {
                             Restart-Service wuauserv -Force -ErrorAction SilentlyContinue
                             Start-Sleep -Seconds 5
                         }
-                    } else {
+                    }
+                    else {
                         # Unknown error — don't retry
                         throw
                     }
@@ -564,28 +955,38 @@ if (-not $SkipWindowsUpdate) {
                 }
             }
         }
-    } else {
+    }
+    else {
         Write-Section 'Windows Update'
         Write-Status 'PSWindowsUpdate module not found. Install with: Install-Module PSWindowsUpdate -Force' -Type Warning
         $updateResults.Skipped.Add([pscustomobject]@{ Name = 'WindowsUpdate'; Reason = 'not installed' })
     }
-} else {
+}
+else {
     $updateResults.Skipped.Add([pscustomobject]@{ Name = 'WindowsUpdate'; Reason = 'flag' })
 }
 
 # ── Microsoft Store Apps ─────────────────────────────────────────────────────────
 Invoke-Update -Name 'StoreApps' -Title 'Microsoft Store Apps' -Disabled:$SkipStoreApps -RequiresAdmin -Action {
     try {
-        Write-Host "  Upgrading MS Store apps via winget..." -ForegroundColor Gray
+        Write-Detail "Checking Microsoft Store app upgrades via winget"
         $result = Invoke-WingetWithTimeout -TimeoutSec $WingetTimeoutSec -Arguments @(
             'upgrade', '--source', 'msstore', '--all', '--silent',
             '--accept-package-agreements', '--accept-source-agreements'
         )
-        Write-FilteredOutput $result.Output
+
+        if ($result.Output -match 'No installed package found matching input criteria\.') {
+            Write-Detail 'No Microsoft Store app upgrades available' -Type Muted
+        }
+        else {
+            Write-FilteredOutput $result.Output
+        }
+
         if ($result.ExitCode -ne 0) {
             Write-Status "winget msstore exited with code $($result.ExitCode)" -Type Warning
         }
-    } catch {
+    }
+    catch {
         throw "StoreApps: $_"
     }
 }
@@ -594,7 +995,10 @@ Invoke-Update -Name 'StoreApps' -Title 'Microsoft Store Apps' -Disabled:$SkipSto
 Invoke-Update -Name 'WSL' -Title 'Windows Subsystem for Linux' -Disabled:$SkipWSL -RequiresCommand 'wsl' -RequiresAdmin -Action {
     # Update the WSL kernel/platform itself (sequential prerequisite)
     $out = (wsl --update 2>&1 | Out-String).Trim() -replace '\x00', ''
-    if ($out) { Write-Host $out -ForegroundColor Gray }
+    if ($out) { Write-IndentedOutput $out -Prefix '  >' -Color ([ConsoleColor]::Gray) }
+    if ($LASTEXITCODE -ne 0) {
+        throw "wsl --update failed with exit code $LASTEXITCODE"
+    }
 
     # Optionally update packages inside each distro — in parallel via Start-Job
     if (-not $SkipWSLDistros) {
@@ -602,37 +1006,112 @@ Invoke-Update -Name 'WSL' -Title 'Windows Subsystem for Linux' -Disabled:$SkipWS
         $distroNames = @($distros | ForEach-Object { ($_.Trim() -replace '\x00', '') } | Where-Object { $_ })
 
         if ($distroNames.Count -eq 0) {
-            Write-Host "  No WSL distros found" -ForegroundColor Gray
-        } else {
-            Write-Host "  Updating packages in $($distroNames.Count) distro(s) in parallel..." -ForegroundColor Gray
+            Write-Detail 'No WSL distros found' -Type Muted
+        }
+        else {
+            Write-Detail "Updating packages in $($distroNames.Count) distro(s) in parallel"
 
             $jobs = @()
             foreach ($distroName in $distroNames) {
                 $jobs += Start-Job -Name "wsl-$distroName" -ArgumentList $distroName -ScriptBlock {
                     param($dn)
-                    # Try apt-get first, then pacman (Arch), then zypper (openSUSE)
-                    $aptResult = wsl -d $dn -- bash -c "command -v apt-get &>/dev/null && sudo apt-get update -qq && sudo apt-get upgrade -y -qq 2>&1 | tail -5" 2>&1
-                    if ($LASTEXITCODE -eq 0) { return "[$dn] apt: $aptResult" }
+                    function Invoke-WslPackageUpdate {
+                        param(
+                            [string]$DistroName,
+                            [string]$Manager,
+                            [string]$Command
+                        )
 
-                    $pacResult = wsl -d $dn -- bash -c "command -v pacman &>/dev/null && sudo pacman -Syu --noconfirm 2>&1 | tail -5" 2>&1
-                    if ($LASTEXITCODE -eq 0) { return "[$dn] pacman: $pacResult" }
+                        $result = (wsl -d $DistroName -- sh -lc $Command 2>&1 | Out-String).Trim()
+                        $exitCode = $LASTEXITCODE
 
-                    $zypResult = wsl -d $dn -- bash -c "command -v zypper &>/dev/null && sudo zypper refresh && sudo zypper update -y 2>&1 | tail -5" 2>&1
-                    return "[$dn] zypper: $zypResult"
+                        return [pscustomobject]@{
+                            Distro = $DistroName
+                            Manager = $Manager
+                            ExitCode = $exitCode
+                            Output = $result
+                        }
+                    }
+
+                    $attempts = @(
+                        @{ Manager = 'apt'; Command = 'if command -v apt-get >/dev/null 2>&1; then sudo apt-get update -qq && sudo apt-get upgrade -y -qq 2>&1 | tail -5; else exit 127; fi' },
+                        @{ Manager = 'pacman'; Command = 'if command -v pacman >/dev/null 2>&1; then sudo pacman -Syu --noconfirm 2>&1 | tail -5; else exit 127; fi' },
+                        @{ Manager = 'zypper'; Command = 'if command -v zypper >/dev/null 2>&1; then sudo zypper refresh && sudo zypper update -y 2>&1 | tail -5; else exit 127; fi' }
+                    )
+
+                    foreach ($attempt in $attempts) {
+                        $result = Invoke-WslPackageUpdate -DistroName $dn -Manager $attempt.Manager -Command $attempt.Command
+                        if ($result.ExitCode -eq 0) {
+                            return [pscustomobject]@{
+                                Distro = $dn
+                                Success = $true
+                                Warning = $false
+                                Manager = $attempt.Manager
+                                Output = $result.Output
+                            }
+                        }
+
+                        if ($result.ExitCode -ne 127) {
+                            return [pscustomobject]@{
+                                Distro = $dn
+                                Success = $false
+                                Warning = $false
+                                Manager = $attempt.Manager
+                                Output = $result.Output
+                            }
+                        }
+                    }
+
+                    return [pscustomobject]@{
+                        Distro = $dn
+                        Success = $true
+                        Warning = $true
+                        Manager = 'none'
+                        Output = 'No supported package manager detected (apt, pacman, zypper)'
+                    }
                 }
             }
 
             # Wait for all distro jobs to complete (5 min timeout)
             $null = Wait-Job -Job $jobs -Timeout 300
+            $wslFailures = [System.Collections.Generic.List[string]]::new()
 
             foreach ($job in $jobs) {
-                $jobOut = (Receive-Job -Job $job -ErrorAction SilentlyContinue 2>&1 | Out-String).Trim()
-                if ($jobOut) { Write-Host "    $jobOut" -ForegroundColor Gray }
                 if ($job.State -eq 'Running') {
                     Stop-Job -Job $job -ErrorAction SilentlyContinue
                     Write-Status "  $($job.Name) timed out" -Type Warning
+                    $null = $wslFailures.Add($job.Name -replace '^wsl-', '')
+                    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+                    continue
                 }
+
+                $jobResult = Receive-Job -Job $job -ErrorAction SilentlyContinue
+                foreach ($result in @($jobResult)) {
+                    if ($null -eq $result) { continue }
+
+                    $label = "[$($result.Distro)] $($result.Manager)"
+                    if ($result.Success -and -not $result.Warning) {
+                        Write-Detail "$label update completed" -Type Info
+                        Write-IndentedOutput $result.Output -Prefix '    -' -Color ([ConsoleColor]::DarkGray)
+                    }
+                    elseif ($result.Warning) {
+                        Write-Detail "[$($result.Distro)] No supported package manager detected" -Type Warning
+                    }
+                    else {
+                        Write-Detail "$label update failed" -Type Error
+                        Write-IndentedOutput $result.Output -Prefix '    x' -Color ([ConsoleColor]::Red)
+                    }
+
+                    if (-not $result.Success) {
+                        $null = $wslFailures.Add($result.Distro)
+                    }
+                }
+
                 Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+            }
+
+            if ($wslFailures.Count -gt 0) {
+                throw "WSL distro update failed for: $($wslFailures -join ', ')"
             }
         }
     }
@@ -647,7 +1126,8 @@ Invoke-Update -Name 'DefenderSignatures' -Title 'Microsoft Defender Signatures' 
     }
     try {
         Update-MpSignature -ErrorAction Stop 2>&1 | Out-Null
-    } catch {
+    }
+    catch {
         $msg = $_.Exception.Message
         if ($msg -match 'completed with errors') {
             $mpStatusAfter = Get-MpComputerStatus -ErrorAction SilentlyContinue
@@ -663,69 +1143,261 @@ Invoke-Update -Name 'DefenderSignatures' -Title 'Microsoft Defender Signatures' 
 }
 
 # ════════════════════════════════════════════════════════════
-#  DEVELOPMENT TOOLS
+#  DEVELOPMENT TOOLS (parallel batch)
 # ════════════════════════════════════════════════════════════
+Write-Host "`n$(if (-not $NoParallel -and $PSVersionTable.PSVersion.Major -ge 7) { '[Parallel]' } else { '[Sequential]' }) Running dev tool updates..." -ForegroundColor DarkCyan
 
-# ── npm ──────────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'npm' -Title 'npm (Node.js)' -Disabled:$SkipNode -RequiresCommand 'npm' -Action {
-    $currentNpm = (npm --version 2>&1).Trim()
-    $latestNpm  = (npm view npm version 2>&1).Trim()
-    if ($currentNpm -ne $latestNpm) { npm install -g npm@latest 2>&1 | Out-Null }
-    $outdatedJson = (npm outdated -g --json 2>$null | Out-String).Trim()
-    if ($outdatedJson) {
-        $outdated = $outdatedJson | ConvertFrom-Json -ErrorAction SilentlyContinue
-        if ($outdated -and $outdated.PSObject.Properties.Count -gt 0) {
-            # BUG FIX: was `@pkgs` (splatting syntax) — use $pkgs so the array expands correctly
-            $pkgs = $outdated.PSObject.Properties.Name
-            Write-Host "  Updating $($pkgs.Count) package(s): $($pkgs -join ', ')" -ForegroundColor Gray
-            npm install -g $pkgs 2>&1 | Out-Null
-        } else {
-            Write-Host "  All global packages are up to date" -ForegroundColor Gray
+Invoke-UpdateParallel @(
+    @{
+        Name = 'npm'; Title = 'npm (Node.js)'; RequiresCommand = 'npm'; Disabled = $SkipNode
+        Action = {
+            $currentNpm = (npm --version 2>&1).Trim()
+            $latestNpm = (npm view npm version 2>&1).Trim()
+            if ($currentNpm -ne $latestNpm) { npm install -g npm@latest 2>&1 | Out-Null }
+            $outdatedJson = (npm outdated -g --json 2>$null | Out-String).Trim()
+            if ($outdatedJson) {
+                $outdated = $outdatedJson | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($outdated -and $outdated.PSObject.Properties.Count -gt 0) {
+                    $pkgs = $outdated.PSObject.Properties.Name
+                    Write-Host "  Updating $($pkgs.Count) package(s): $($pkgs -join ', ')" -ForegroundColor Gray
+                    npm install -g $pkgs 2>&1 | Out-Null
+                }
+                else { Write-Host "  All global packages are up to date" -ForegroundColor Gray }
+            }
+            else { Write-Host "  All global packages are up to date" -ForegroundColor Gray }
+            npm cache clean --force 2>&1 | Out-Null
         }
-    } else {
-        Write-Host "  All global packages are up to date" -ForegroundColor Gray
     }
-    npm cache clean --force 2>&1 | Out-Null
-}
-
-# ── pnpm ─────────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'pnpm' -Disabled:$SkipNode -RequiresCommand 'pnpm' -SlowOperation -Action {
-    $out = (pnpm update -g 2>&1 | Out-String).Trim()
-    if ($out) { Write-Host $out -ForegroundColor Gray }
-}
-
-# ── Bun ──────────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'Bun' -Disabled:$SkipNode -RequiresCommand 'bun' -SlowOperation -Action {
-    $out = (bun upgrade 2>&1 | Out-String).Trim()
-    if ($out) { Write-Host $out -ForegroundColor Gray }
-}
-
-# ── Deno ─────────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'Deno' -Disabled:$SkipNode -RequiresCommand 'deno' -SlowOperation -Action {
-    $denoPath = (Get-Command deno).Source
-    if ($denoPath -like '*scoop*') {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-        return
+    @{
+        Name = 'pnpm'; RequiresCommand = 'pnpm'; Disabled = $SkipNode; SlowOperation = $true
+        Action = {
+            $out = (pnpm update -g 2>&1 | Out-String).Trim()
+            if ($out) { Write-Host $out -ForegroundColor Gray }
+        }
     }
-    if ($denoPath -like '*WinGet*' -or $denoPath -like '*winget*') {
-        Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray
-        return
+    @{
+        Name = 'Bun'; RequiresCommand = 'bun'; Disabled = $SkipNode; SlowOperation = $true
+        Action = {
+            $out = (bun upgrade 2>&1 | Out-String).Trim()
+            if ($out) { Write-Host $out -ForegroundColor Gray }
+        }
     }
-
-    $env:NO_COLOR = '1'
-    try {
-        $out = (deno upgrade 2>&1 | Out-String).Trim()
-        if ($out) { Write-Host $out -ForegroundColor Gray }
-    } finally {
-        Remove-Item Env:\NO_COLOR -ErrorAction SilentlyContinue
+    @{
+        Name = 'Deno'; RequiresCommand = 'deno'; Disabled = $SkipNode; SlowOperation = $true
+        Action = {
+            $denoPath = (Get-Command deno).Source
+            if ($denoPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)"  -ForegroundColor Gray; return }
+            if ($denoPath -like '*WinGet*' -or $denoPath -like '*winget*') { Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray; return }
+            $env:NO_COLOR = '1'
+            try { $out = (deno upgrade 2>&1 | Out-String).Trim(); if ($out) { Write-Host $out -ForegroundColor Gray } }
+            finally { Remove-Item Env:\NO_COLOR -ErrorAction SilentlyContinue }
+        }
     }
-}
+    @{
+        Name = 'Rust'; RequiresCommand = 'rustup'; Disabled = $SkipRust
+        Action = {
+            $out = (rustup update 2>&1 | Out-String).Trim()
+            if ($out) { Write-Host $out -ForegroundColor Gray }
+        }
+    }
+    @{
+        Name = 'Go'; RequiresCommand = 'go'; Disabled = $SkipGo
+        Action = {
+            $goPath = (Get-Command go).Source
+            if ($goPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray }
+            elseif ($goPath -like '*winget*' -or $goPath -like '*WinGet*') { Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray }
+            else {
+                try {
+                    $r = Invoke-WingetWithTimeout -TimeoutSec $WingetTimeoutSec -Arguments @('upgrade', '--id', 'GoLang.Go', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity')
+                    if ($r.ExitCode -eq 0 -and $r.Output -match 'Successfully installed') { Write-Host "  Updated via winget (GoLang.Go)" -ForegroundColor Gray }
+                    else { Write-Host "  No newer version available or not managed by winget" -ForegroundColor Gray }
+                }
+                catch { Write-Status "Go winget upgrade: $_" -Type Warning }
+            }
+            if (-not $SkipDestructive) {
+                Write-Host "  Cleaning module cache..." -ForegroundColor Gray
+                go clean -modcache 2>&1 | Out-Null
+            }
+        }
+    }
+    @{
+        Name = 'gh-extensions'; Title = 'GitHub CLI Extensions'; RequiresCommand = 'gh'
+        Action = {
+            $ghExt = (gh extension list 2>&1 | Out-String).Trim()
+            if ($ghExt) { gh extension upgrade --all 2>&1 | Out-Null }
+            else { Write-Status 'No gh extensions installed' -Type Info }
+        }
+    }
+    @{
+        Name = 'pipx'; Title = 'pipx (Python CLI Tools)'; RequiresCommand = 'pipx'
+        Action = { pipx upgrade-all 2>&1 | Out-Null }
+    }
+    @{
+        Name = 'Poetry'; Title = 'Poetry (Python Packaging)'; RequiresCommand = 'poetry'; Disabled = $SkipPoetry
+        Action = {
+            $out = (poetry self update 2>&1 | Out-String).Trim()
+            if ($out) { Write-Host $out -ForegroundColor Gray }
+        }
+    }
+    @{
+        Name = 'Composer'; Title = 'Composer (PHP)'; RequiresCommand = 'composer'; Disabled = $SkipComposer
+        Action = {
+            $selfOut = (composer self-update --no-interaction 2>&1 | Out-String).Trim()
+            if ($selfOut) { Write-Host $selfOut   -ForegroundColor Gray }
+            $globalOut = (composer global update --no-interaction 2>&1 | Out-String).Trim()
+            if ($globalOut) { Write-Host $globalOut -ForegroundColor Gray }
+        }
+    }
+    @{
+        Name = 'RubyGems'; RequiresCommand = 'gem'; Disabled = $SkipRuby; SlowOperation = $true
+        Action = {
+            $sysOut = (gem update --system 2>&1 | Out-String).Trim()
+            if ($sysOut) { Write-Host $sysOut -ForegroundColor Gray }
+            $gemOut = (gem update 2>&1 | Out-String).Trim()
+            if ($gemOut) { Write-Host $gemOut -ForegroundColor Gray }
+        }
+    }
+    @{
+        Name = 'yt-dlp'; RequiresCommand = 'yt-dlp'
+        Action = {
+            $ytdlpPath = (Get-Command yt-dlp).Source
+            if ($ytdlpPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray }
+            elseif ($ytdlpPath -like '*pip*' -or $ytdlpPath -like '*Python*' -or $ytdlpPath -like '*Scripts*') {
+                $pCmd = if (Test-Command 'python') { 'python' } else { $null }
+                if ($pCmd) { & $pCmd -m pip install --upgrade yt-dlp 2>&1 | Out-Null; Write-Host "  Updated via pip" -ForegroundColor Gray }
+                else { Write-Status "yt-dlp installed via pip but Python not found" -Type Warning }
+            }
+            else {
+                $out = (yt-dlp -U 2>&1 | Out-String).Trim()
+                if ($out) { Write-Host $out -ForegroundColor Gray }
+            }
+        }
+    }
+    @{
+        Name = 'tldr'; Title = 'tldr Cache'; RequiresAnyCommand = @('tldr', 'tealdeer')
+        Action = {
+            $tldrCmd = if (Test-Command 'tealdeer') { 'tealdeer' } else { 'tldr' }
+            $out = (& $tldrCmd --update 2>&1 | Out-String).Trim()
+            if ($out) { Write-Host $out -ForegroundColor Gray }
+        }
+    }
+    @{
+        Name = 'oh-my-posh'; Title = 'Oh My Posh'; RequiresCommand = 'oh-my-posh'
+        Action = {
+            $ompPath = (Get-Command oh-my-posh).Source
+            if ($ompPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)"               -ForegroundColor Gray }
+            elseif ($ompPath -like '*winget*') { Write-Host "  Managed by winget (already updated)"              -ForegroundColor Gray }
+            elseif ($ompPath -like '*WindowsApps*') { Write-Host "  Managed by winget/Store (already updated)"    -ForegroundColor Gray }
+            else {
+                $out = (oh-my-posh upgrade 2>&1 | Out-String).Trim()
+                if ($out -match '(?i)not supported|error|failed') { Write-Status "oh-my-posh upgrade failed: $out" -Type Warning }
+                elseif ($out) { Write-Host $out -ForegroundColor Gray }
+            }
+        }
+    }
+    @{
+        Name = 'Volta'; Title = 'Volta (Node Version Manager)'; RequiresCommand = 'volta'; Disabled = $SkipNode; SlowOperation = $true
+        Action = {
+            $voltaPath = (Get-Command volta).Source
+            if ($voltaPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray }
+            else { Write-Status 'Volta installed standalone - update via its installer' -Type Info }
+        }
+    }
+    @{
+        Name = 'fnm'; Title = 'fnm (Fast Node Manager)'; RequiresCommand = 'fnm'; Disabled = $SkipNode; SlowOperation = $true
+        Action = {
+            $fnmPath = (Get-Command fnm).Source
+            if ($fnmPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)"  -ForegroundColor Gray }
+            elseif ($fnmPath -like '*winget*' -or $fnmPath -like '*WinGet*') { Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray }
+            else { Write-Status 'fnm installed standalone - update via its installer or scoop' -Type Info }
+        }
+    }
+    @{
+        Name = 'mise'; Title = 'mise (Tool Version Manager)'; RequiresCommand = 'mise'; SlowOperation = $true
+        Action = {
+            $misePath = (Get-Command mise).Source
+            if ($misePath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)"  -ForegroundColor Gray }
+            elseif ($misePath -like '*winget*' -or $misePath -like '*WinGet*') { Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray }
+            else {
+                $out = (mise self-update --yes 2>&1 | Out-String).Trim()
+                if ($out) { Write-Host $out -ForegroundColor Gray }
+            }
+            $pluginsOut = (mise plugins ls 2>&1 | Out-String).Trim()
+            if ($pluginsOut) {
+                Write-Host "  Upgrading mise plugins..." -ForegroundColor Gray
+                mise plugins upgrade 2>&1 | Out-Null
+            }
+            Write-Host "  Upgrading mise-managed runtimes..." -ForegroundColor Gray
+            $upgradeOut = (mise upgrade 2>&1 | Out-String).Trim()
+            if ($upgradeOut) { Write-Host $upgradeOut -ForegroundColor Gray }
+        }
+    }
+    @{
+        Name = 'juliaup'; Title = 'Julia (juliaup)'; RequiresCommand = 'juliaup'; SlowOperation = $true
+        Action = {
+            $juliaupPath = (Get-Command juliaup).Source
+            if ($juliaupPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)"  -ForegroundColor Gray }
+            elseif ($juliaupPath -like '*winget*' -or $juliaupPath -like '*WinGet*') { Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray }
+            else {
+                $out = (juliaup update 2>&1 | Out-String).Trim()
+                if ($out) { Write-Host $out -ForegroundColor Gray }
+            }
+        }
+    }
+    @{
+        Name = 'Ollama Models'; Title = 'Ollama Models'; RequiresCommand = 'ollama'
+        Disabled = (-not $UpdateOllamaModels); SlowOperation = $true
+        Action = {
+            $listOut = (ollama list 2>&1 | Out-String).Trim()
+            if (-not $listOut -or $listOut -match '(?i)error') { Write-Status 'Could not list Ollama models' -Type Warning; return }
+            $modelNames = ($listOut -split "`n" | Select-Object -Skip 1 | ForEach-Object { ($_ -split '\s+')[0] } | Where-Object { $_ -and $_ -notmatch '^\s*$' })
+            if (-not $modelNames -or $modelNames.Count -eq 0) { Write-Host "  No Ollama models installed" -ForegroundColor Gray; return }
+            Write-Host "  Pulling updates for $($modelNames.Count) model(s)..." -ForegroundColor Gray
+            $updatedCount = 0; $currentCount = 0
+            foreach ($model in $modelNames) {
+                Write-Host "    Pulling $model..." -ForegroundColor Gray
+                $pullOut = (ollama pull $model 2>&1 | Out-String).Trim()
+                if ($pullOut -match '(?i)up to date') { $currentCount++ } else { $updatedCount++ }
+            }
+            Write-Host "  $updatedCount updated, $currentCount already current" -ForegroundColor Gray
+        }
+    }
+    @{
+        Name = 'git-lfs'; Title = 'Git LFS'; RequiresCommand = 'git-lfs'; Disabled = $SkipGitLFS
+        Action = {
+            $lfsPath = (Get-Command git-lfs).Source
+            if ($lfsPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray }
+            else {
+                try {
+                    Invoke-WingetWithTimeout -TimeoutSec 120 -Arguments @('upgrade', '--id', 'GitHub.GitLFS', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity') | Out-Null
+                    Write-Host "  Updated via winget (GitHub.GitLFS)" -ForegroundColor Gray
+                }
+                catch { Write-Status "git-lfs winget upgrade: $_" -Type Warning }
+            }
+        }
+    }
+    @{
+        Name = 'git-credential-manager'; Title = 'Git Credential Manager'; RequiresCommand = 'git-credential-manager'
+        Action = {
+            $gcmPath = (Get-Command git-credential-manager).Source
+            if ($gcmPath -like '*scoop*') { Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray }
+            else {
+                try {
+                    Invoke-WingetWithTimeout -TimeoutSec $WingetTimeoutSec -Arguments @('upgrade', '--id', 'Git.Git', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity') | Out-Null
+                    Write-Host "  Updated via winget (Git.Git)" -ForegroundColor Gray
+                }
+                catch { Write-Status "GCM winget upgrade: $_" -Type Warning }
+            }
+        }
+    }
+)
 
 # ── Python / pip ─────────────────────────────────────────────────────────────────
 $pythonCmd = $null
 if (Test-Command 'python') {
     $pythonCmd = 'python'
-} else {
+}
+else {
     foreach ($ver in @(314, 313, 312, 311, 310)) {
         $py = "C:\Program Files\Python$ver\python.exe"
         if (Test-Path $py) { $pythonCmd = $py; break }
@@ -735,8 +1407,30 @@ if ($pythonCmd) {
     Invoke-Update -Name 'pip' -Title 'Python / pip' -Action {
         Write-Host "  Using: $pythonCmd" -ForegroundColor Gray
         & $pythonCmd -m pip install --upgrade pip 2>&1 | Out-Null
+
+        # Upgrade outdated global packages
+        try {
+            $outdatedJson = (& $pythonCmd -m pip list --outdated --format=json 2>$null | Out-String).Trim()
+            if ($outdatedJson) {
+                $outdated = $outdatedJson | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($outdated -and @($outdated).Count -gt 0) {
+                    $pkgNames = @($outdated | ForEach-Object { $_.name })
+                    Write-Host "  Upgrading $($pkgNames.Count) outdated package(s): $($pkgNames -join ', ')" -ForegroundColor Gray
+                    foreach ($pkg in $pkgNames) {
+                        & $pythonCmd -m pip install --upgrade $pkg 2>&1 | Out-Null
+                    }
+                }
+                else {
+                    Write-Host "  All global pip packages are up to date" -ForegroundColor Gray
+                }
+            }
+        }
+        catch {
+            Write-Status "pip global upgrade check failed: $_" -Type Warning
+        }
     }
-} else {
+}
+else {
     Write-Section 'Python / pip'
     Write-Status 'Python not found' -Type Warning
     $updateResults.Skipped.Add([pscustomobject]@{ Name = 'pip'; Reason = 'not installed' })
@@ -747,9 +1441,11 @@ Invoke-Update -Name 'uv' -Title 'UV Package Manager' -RequiresCommand 'uv' -Acti
     $uvPath = (Get-Command uv).Source
     if ($uvPath -like "*scoop*") {
         Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } elseif ($uvPath -like "*pip*" -or $uvPath -like "*Python*") {
+    }
+    elseif ($uvPath -like "*pip*" -or $uvPath -like "*Python*") {
         Write-Host "  Managed by pip (update with: pip install --upgrade uv)" -ForegroundColor Gray
-    } else {
+    }
+    else {
         $out = (uv self update 2>&1 | Out-String).Trim()
         if ($out -match 'error') {
             Write-Host "  uv self-update not supported; trying winget..." -ForegroundColor Gray
@@ -757,7 +1453,8 @@ Invoke-Update -Name 'uv' -Title 'UV Package Manager' -RequiresCommand 'uv' -Acti
                 'upgrade', '--id', 'astral-sh.uv',
                 '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity'
             ) | Out-Null
-        } elseif ($out) {
+        }
+        elseif ($out) {
             Write-Host $out -ForegroundColor Gray
         }
     }
@@ -780,7 +1477,8 @@ Invoke-Update -Name 'Claude CLI' -Title 'Claude CLI (Anthropic)' -RequiresComman
         $rawVer = (claude --version 2>&1 | Out-String).Trim()
         # Strip labels like " (Claude Code)" to get the bare semver
         if ($rawVer -match '[\d]+\.[\d]+\.[\d]+') { $currentVer = $Matches[0] }
-    } catch { }
+    }
+    catch { }
     $latestVer = (npm show @anthropic-ai/claude-code version 2>&1 | Out-String).Trim()
 
     if (-not $latestVer -or $latestVer -match '(?i)error|ERR!') {
@@ -790,9 +1488,28 @@ Invoke-Update -Name 'Claude CLI' -Title 'Claude CLI (Anthropic)' -RequiresComman
 
     if (-not $currentVer -or $currentVer -ne $latestVer) {
         Write-Host "  Updating Claude CLI: $currentVer -> $latestVer" -ForegroundColor Gray
-        $out = (npm install -g @anthropic-ai/claude-code 2>&1 | Out-String).Trim()
-        if ($out) { Write-Host $out -ForegroundColor Gray }
-    } else {
+
+        # Check if the npm global prefix is in a protected location (requires admin)
+        $npmPrefix = (npm prefix -g 2>&1 | Out-String).Trim()
+        $needsAdmin = (-not $isAdmin) -and ($npmPrefix -like "${env:ProgramFiles}*" -or $npmPrefix -like "${env:ProgramFiles(x86)}*" -or $npmPrefix -like "C:\Program Files*")
+
+        if ($needsAdmin) {
+            # Try installing to the user-level npm prefix instead
+            $userNpmDir = Join-Path $env:APPDATA 'npm'
+            if (-not (Test-Path $userNpmDir)) { New-Item -ItemType Directory -Path $userNpmDir -Force | Out-Null }
+            Write-Host "  npm global prefix is admin-protected; installing to user prefix ($userNpmDir)..." -ForegroundColor Gray
+            $out = (npm install -g @anthropic-ai/claude-code --prefix "$userNpmDir" 2>&1 | Out-String).Trim()
+            if ($out -match '(?i)EPERM|EACCES|error') {
+                Write-Status "Claude CLI update requires admin (npm prefix: $npmPrefix). Run elevated or change npm prefix." -Type Warning
+            }
+            elseif ($out) { Write-Host $out -ForegroundColor Gray }
+        }
+        else {
+            $out = (npm install -g @anthropic-ai/claude-code 2>&1 | Out-String).Trim()
+            if ($out) { Write-Host $out -ForegroundColor Gray }
+        }
+    }
+    else {
         Write-Host "  Claude CLI is up to date ($currentVer)" -ForegroundColor Gray
     }
 }
@@ -805,17 +1522,25 @@ Invoke-Update -Name 'uv-python' -Title 'uv Python Versions' -Disabled:$SkipUVToo
         return
     }
     Write-Host "  Upgrading uv-managed Python installs..." -ForegroundColor Gray
-    $out = (uv python upgrade --all 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -and $out -match '(?i)unknown|unrecognized|error') {
-        Write-Status 'uv python upgrade not supported by this version' -Type Info
+
+    # Extract unique major.minor versions from uv python list output and reinstall
+    # to pull the latest patch releases.  Lines look like:
+    #   cpython-3.13.2-windows-x86_64-none    C:\Users\...\python.exe
+    $majMinors = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($line in ($pyList -split '\r?\n')) {
+        if ($line -match 'cpython-(\d+\.\d+)') {
+            $null = $majMinors.Add($Matches[1])
+        }
+    }
+
+    if ($majMinors.Count -eq 0) {
+        Write-Host "  No uv-managed cpython installs detected" -ForegroundColor Gray
         return
     }
-    if ($out) { Write-Host $out -ForegroundColor Gray }
-}
 
-# ── Rust ─────────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'Rust' -Disabled:$SkipRust -RequiresCommand 'rustup' -Action {
-    $out = (rustup update 2>&1 | Out-String).Trim()
+    $versions = @($majMinors | Sort-Object)
+    Write-Host "  Reinstalling latest patches for: $($versions -join ', ')" -ForegroundColor Gray
+    $out = (uv python install @versions 2>&1 | Out-String).Trim()
     if ($out) { Write-Host $out -ForegroundColor Gray }
 }
 
@@ -825,50 +1550,28 @@ if ((Test-Command 'cargo') -and -not $FastMode -and -not $SkipRust) {
     try {
         $null = cargo install-update --version 2>$null
         $hasCargoUpdate = ($LASTEXITCODE -eq 0)
-    } catch { }
+    }
+    catch { }
 
     if ($hasCargoUpdate) {
         Invoke-Update -Name 'cargo-binaries' -Title 'Cargo Global Binaries' -Action {
             $out = (cargo install-update -a 2>&1 | Out-String).Trim()
             if ($out) { Write-Host $out -ForegroundColor Gray }
         }
-    } else {
+    }
+    else {
         Write-Status 'cargo-update not installed (run: cargo install cargo-update)' -Type Info
         $updateResults.Skipped.Add([pscustomobject]@{ Name = 'cargo-binaries'; Reason = 'not installed' })
     }
-} elseif (Test-Command 'cargo') {
-    $updateResults.Skipped.Add([pscustomobject]@{ Name = 'cargo-binaries'; Reason = 'fast mode' })
-} elseif ($SkipRust) {
+}
+elseif ($SkipRust) {
     $updateResults.Skipped.Add([pscustomobject]@{ Name = 'cargo-binaries'; Reason = 'flag' })
 }
-
-# ── Go ───────────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'Go' -Disabled:$SkipGo -RequiresCommand 'go' -Action {
-    $goPath = (Get-Command go).Source
-    if ($goPath -like '*scoop*') {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } elseif ($goPath -like '*winget*' -or $goPath -like '*WinGet*') {
-        Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray
-    } else {
-        # Try updating via winget
-        try {
-            $goResult = Invoke-WingetWithTimeout -TimeoutSec $WingetTimeoutSec -Arguments @(
-                'upgrade', '--id', 'GoLang.Go',
-                '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity'
-            )
-            if ($goResult.ExitCode -eq 0 -and $goResult.Output -match 'Successfully installed') {
-                Write-Host "  Updated via winget (GoLang.Go)" -ForegroundColor Gray
-            } else {
-                Write-Host "  No newer version available or not managed by winget" -ForegroundColor Gray
-            }
-        } catch {
-            Write-Status "Go winget upgrade: $_" -Type Warning
-        }
-    }
-    if (-not $SkipDestructive) {
-        Write-Host "  Cleaning module cache (use -SkipDestructive to skip)..." -ForegroundColor Gray
-        go clean -modcache 2>&1 | Out-Null
-    }
+elseif (Test-Command 'cargo') {
+    $updateResults.Skipped.Add([pscustomobject]@{ Name = 'cargo-binaries'; Reason = 'fast mode' })
+}
+else {
+    $updateResults.Skipped.Add([pscustomobject]@{ Name = 'cargo-binaries'; Reason = 'not installed' })
 }
 
 # ── .NET tools ───────────────────────────────────────────────────────────────────
@@ -893,18 +1596,19 @@ Invoke-Update -Name 'dotnet' -Title '.NET Tools' -RequiresCommand 'dotnet' -Acti
     if (-not $toolLines) { Write-Host "  No global .NET tools installed" -ForegroundColor Gray; return }
 
     $updatedCount = 0
-    $errorCount   = 0
+    $errorCount = 0
     foreach ($line in $toolLines) {
         $parts = $line -split '\s+', 3
         if ($parts.Count -lt 2) { continue }
-        $toolId      = $parts[0].Trim()
-        $currentVer  = $parts[1].Trim()
+        $toolId = $parts[0].Trim()
+        $currentVer = $parts[1].Trim()
 
         try {
-            $meta      = Invoke-RestMethod "https://api.nuget.org/v3-flatcontainer/$($toolId.ToLower())/index.json" -TimeoutSec 10 -ErrorAction Stop
+            $meta = Invoke-RestMethod "https://api.nuget.org/v3-flatcontainer/$($toolId.ToLower())/index.json" -TimeoutSec 10 -ErrorAction Stop
             $latestVer = $meta.versions | Where-Object { $_ -notmatch '-' } | Select-Object -Last 1
             if (-not $latestVer) { $latestVer = $meta.versions | Select-Object -Last 1 }
-        } catch { $latestVer = $null }
+        }
+        catch { $latestVer = $null }
 
         if (-not $latestVer -or $latestVer -eq $currentVer) { continue }
 
@@ -917,7 +1621,8 @@ Invoke-Update -Name 'dotnet' -Title '.NET Tools' -RequiresCommand 'dotnet' -Acti
             }
             if ($out) { Write-Host $out -ForegroundColor Gray }
             $updatedCount++
-        } catch {
+        }
+        catch {
             Write-Status "  $toolId failed: $_" -Type Warning
             $errorCount++
         }
@@ -927,7 +1632,7 @@ Invoke-Update -Name 'dotnet' -Title '.NET Tools' -RequiresCommand 'dotnet' -Acti
     if ($errorCount -gt 0) { Write-Status "$errorCount tool(s) had errors" -Type Warning }
 }
 
-# ── .NET workloads (NEW) ─────────────────────────────────────────────────────────
+# ── .NET workloads ───────────────────────────────────────────────────────────────
 Invoke-Update -Name 'dotnet-workloads' -Title '.NET Workloads' -RequiresCommand 'dotnet' -Action {
     $workloads = (dotnet workload list 2>&1 | Out-String)
     if ($workloads -notmatch 'No workloads are installed') {
@@ -935,148 +1640,25 @@ Invoke-Update -Name 'dotnet-workloads' -Title '.NET Workloads' -RequiresCommand 
         if ($out) {
             $lines = $out -split "`n"
             $filtered = $lines | Where-Object { $_ -notmatch 'Updated advertising manifest' }
-            $verbose  = $lines | Where-Object { $_ -match 'Updated advertising manifest' }
+            $verbose = $lines | Where-Object { $_ -match 'Updated advertising manifest' }
             if ($verbose) { Write-Verbose ($verbose -join "`n") }
             $filteredText = ($filtered -join "`n").Trim()
             if ($filteredText) { Write-Host $filteredText -ForegroundColor Gray }
         }
-    } else {
+    }
+    else {
         Write-Status 'No .NET workloads installed' -Type Info
     }
 }
 
-# ── GitHub CLI extensions ────────────────────────────────────────────────────────
-Invoke-Update -Name 'gh-extensions' -Title 'GitHub CLI Extensions' -RequiresCommand 'gh' -Action {
-    $ghExt = (gh extension list 2>&1 | Out-String).Trim()
-    if ($ghExt) {
-        gh extension upgrade --all 2>&1 | Out-Null
-    } else {
-        Write-Status 'No gh extensions installed' -Type Info
-    }
-}
-
 # ── VS Code extensions ───────────────────────────────────────────────────────────
-Invoke-Update -Name 'vscode-extensions' -Title 'VS Code Extensions' -Disabled:$SkipVSCodeExtensions -RequiresAnyCommand @('code', 'code-insiders') -SlowOperation -Action {
-    $codeCmd = if (Test-Command 'code') { 'code' } elseif (Test-Command 'code-insiders') { 'code-insiders' } else { $null }
-    $out = (& $codeCmd --update-extensions 2>&1 | Out-String).Trim()
-    if ($out) { Write-Host $out -ForegroundColor Gray }
-}
-
-# ── pipx ─────────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'pipx' -Title 'pipx (Python CLI Tools)' -RequiresCommand 'pipx' -Action {
-    pipx upgrade-all 2>&1 | Out-Null
-}
-
-# ── Poetry ───────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'Poetry' -Title 'Poetry (Python Packaging)' -Disabled:$SkipPoetry -RequiresCommand 'poetry' -Action {
-    $out = (poetry self update 2>&1 | Out-String).Trim()
-    if ($out) { Write-Host $out -ForegroundColor Gray }
-}
-
-# ── Composer ─────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'Composer' -Title 'Composer (PHP)' -Disabled:$SkipComposer -RequiresCommand 'composer' -Action {
-    $selfOut   = (composer self-update --no-interaction 2>&1 | Out-String).Trim()
-    if ($selfOut)   { Write-Host $selfOut   -ForegroundColor Gray }
-    $globalOut = (composer global update --no-interaction 2>&1 | Out-String).Trim()
-    if ($globalOut) { Write-Host $globalOut -ForegroundColor Gray }
-}
-
-# ── RubyGems ─────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'RubyGems' -Title 'RubyGems' -Disabled:$SkipRuby -RequiresCommand 'gem' -SlowOperation -Action {
-    $sysOut = (gem update --system 2>&1 | Out-String).Trim()
-    if ($sysOut) { Write-Host $sysOut -ForegroundColor Gray }
-    $gemOut = (gem update 2>&1 | Out-String).Trim()
-    if ($gemOut) { Write-Host $gemOut -ForegroundColor Gray }
-}
-
-# ── Volta ────────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'Volta' -Title 'Volta (Node Version Manager)' -Disabled:$SkipNode -RequiresCommand 'volta' -SlowOperation -Action {
-    $voltaPath = (Get-Command volta).Source
-    if ($voltaPath -like "*scoop*") {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } else {
-        Write-Status 'Volta installed standalone - update via its installer' -Type Info
+Invoke-Update -Name 'vscode-extensions' -Title 'VS Code Extensions' -Disabled:$SkipVSCodeExtensions -RequiresAnyCommand @('code', 'code-insiders', 'code.cmd', 'code-insiders.cmd') -SlowOperation -Action {
+    $codeCli = Get-VSCodeCliPath
+    if (-not $codeCli) {
+        Write-Status 'VS Code CLI shim not found (code.cmd/code-insiders.cmd); skipping extension update to avoid launching UI' -Type Warning
+        return
     }
-}
-
-# ── Git Credential Manager (NEW) ─────────────────────────────────────────────────
-Invoke-Update -Name 'git-credential-manager' -Title 'Git Credential Manager' -RequiresCommand 'git-credential-manager' -Action {
-    # GCM ships with Git for Windows and has no self-update command; update via winget Git.Git
-    $gcmPath = (Get-Command git-credential-manager).Source
-    if ($gcmPath -like "*scoop*") {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } else {
-        try {
-            Invoke-WingetWithTimeout -TimeoutSec $WingetTimeoutSec -Arguments @(
-                'upgrade', '--id', 'Git.Git',
-                '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity'
-            ) | Out-Null
-            Write-Host "  Updated via winget (Git.Git)" -ForegroundColor Gray
-        } catch {
-            Write-Status "GCM winget upgrade: $_" -Type Warning
-        }
-    }
-}
-
-# ── Oh My Posh (NEW) ─────────────────────────────────────────────────────────────
-Invoke-Update -Name 'oh-my-posh' -Title 'Oh My Posh' -RequiresCommand 'oh-my-posh' -Action {
-    $ompPath = (Get-Command oh-my-posh).Source
-    if ($ompPath -like "*scoop*") {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } elseif ($ompPath -like "*winget*") {
-        Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray
-    } elseif ($ompPath -like "*WindowsApps*") {
-        Write-Host "  Managed by winget/Store (already updated by bulk pass)" -ForegroundColor Gray
-    } else {
-        $out = (oh-my-posh upgrade 2>&1 | Out-String).Trim()
-        if ($out -match '(?i)not supported|error|❌|failed') {
-            Write-Status "oh-my-posh upgrade failed: $out" -Type Warning
-        } elseif ($out) {
-            Write-Host $out -ForegroundColor Gray
-        }
-    }
-}
-
-# ── yt-dlp (NEW) ─────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'yt-dlp' -Title 'yt-dlp' -RequiresCommand 'yt-dlp' -Action {
-    $ytdlpPath = (Get-Command yt-dlp).Source
-    if ($ytdlpPath -like "*scoop*") {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } elseif ($ytdlpPath -like "*pip*" -or $ytdlpPath -like "*Python*" -or $ytdlpPath -like "*Scripts*") {
-        if ($pythonCmd) {
-            & $pythonCmd -m pip install --upgrade yt-dlp 2>&1 | Out-Null
-            Write-Host "  Updated via pip" -ForegroundColor Gray
-        } else {
-            Write-Status "yt-dlp installed via pip but Python not found" -Type Warning
-        }
-    } else {
-        $out = (yt-dlp -U 2>&1 | Out-String).Trim()
-        if ($out) { Write-Host $out -ForegroundColor Gray }
-    }
-}
-
-# ── Git LFS ───────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'git-lfs' -Title 'Git LFS' -Disabled:$SkipGitLFS -RequiresCommand 'git-lfs' -Action {
-    $lfsPath = (Get-Command git-lfs).Source
-    if ($lfsPath -like '*scoop*') {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } else {
-        try {
-            Invoke-WingetWithTimeout -TimeoutSec 120 -Arguments @(
-                'upgrade', '--id', 'GitHub.GitLFS',
-                '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity'
-            ) | Out-Null
-            Write-Host "  Updated via winget (GitHub.GitLFS)" -ForegroundColor Gray
-        } catch {
-            Write-Status "git-lfs winget upgrade: $_" -Type Warning
-        }
-    }
-}
-
-# ── tldr / tealdeer ───────────────────────────────────────────────────────────────
-Invoke-Update -Name 'tldr' -Title 'tldr Cache' -RequiresAnyCommand @('tldr', 'tealdeer') -Action {
-    $tldrCmd = if (Test-Command 'tealdeer') { 'tealdeer' } else { 'tldr' }
-    $out = (& $tldrCmd --update 2>&1 | Out-String).Trim()
+    $out = (& $codeCli --update-extensions 2>&1 | Out-String).Trim()
     if ($out) { Write-Host $out -ForegroundColor Gray }
 }
 
@@ -1085,93 +1667,11 @@ Invoke-Update -Name 'Flutter' -Disabled:$SkipFlutter -RequiresCommand 'flutter' 
     $flutterPath = (Get-Command flutter).Source
     if ($flutterPath -like '*scoop*') {
         Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } else {
+    }
+    else {
         $out = (flutter upgrade 2>&1 | Out-String).Trim()
         if ($out) { Write-Host $out -ForegroundColor Gray }
     }
-}
-
-# ── fnm (Fast Node Manager) ──────────────────────────────────────────────────────
-Invoke-Update -Name 'fnm' -Title 'fnm (Fast Node Manager)' -Disabled:$SkipNode -RequiresCommand 'fnm' -SlowOperation -Action {
-    $fnmPath = (Get-Command fnm).Source
-    if ($fnmPath -like '*scoop*') {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } elseif ($fnmPath -like '*winget*' -or $fnmPath -like '*WinGet*') {
-        Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray
-    } else {
-        Write-Status 'fnm installed standalone - update via its installer or scoop' -Type Info
-    }
-}
-
-# ── mise (polyglot tool version manager) ─────────────────────────────────────────
-Invoke-Update -Name 'mise' -Title 'mise (Tool Version Manager)' -RequiresCommand 'mise' -SlowOperation -Action {
-    $misePath = (Get-Command mise).Source
-    if ($misePath -like '*scoop*') {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } elseif ($misePath -like '*winget*' -or $misePath -like '*WinGet*') {
-        Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray
-    } else {
-        $out = (mise self-update --yes 2>&1 | Out-String).Trim()
-        if ($out) { Write-Host $out -ForegroundColor Gray }
-    }
-    # Update plugins and managed runtimes
-    $pluginsOut = (mise plugins ls 2>&1 | Out-String).Trim()
-    if ($pluginsOut) {
-        Write-Host "  Upgrading mise plugins..." -ForegroundColor Gray
-        mise plugins upgrade 2>&1 | Out-Null
-    }
-    # Upgrade all managed tool versions (respects .tool-versions / mise.toml)
-    Write-Host "  Upgrading mise-managed runtimes..." -ForegroundColor Gray
-    $upgradeOut = (mise upgrade 2>&1 | Out-String).Trim()
-    if ($upgradeOut) { Write-Host $upgradeOut -ForegroundColor Gray }
-}
-
-# ── juliaup ───────────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'juliaup' -Title 'Julia (juliaup)' -RequiresCommand 'juliaup' -SlowOperation -Action {
-    $juliaupPath = (Get-Command juliaup).Source
-    if ($juliaupPath -like '*scoop*') {
-        Write-Host "  Managed by Scoop (already updated)" -ForegroundColor Gray
-    } elseif ($juliaupPath -like '*winget*' -or $juliaupPath -like '*WinGet*') {
-        Write-Host "  Managed by winget (already updated)" -ForegroundColor Gray
-    } else {
-        $out = (juliaup update 2>&1 | Out-String).Trim()
-        if ($out) { Write-Host $out -ForegroundColor Gray }
-    }
-}
-
-# ── Ollama Models ─────────────────────────────────────────────────────────────────
-Invoke-Update -Name 'Ollama Models' -Title 'Ollama Models' -Disabled:$(-not $UpdateOllamaModels) -RequiresCommand 'ollama' -SlowOperation -Action {
-    $listOut = (ollama list 2>&1 | Out-String).Trim()
-    if (-not $listOut -or $listOut -match '(?i)error') {
-        Write-Status 'Could not list Ollama models' -Type Warning
-        return
-    }
-
-    # Parse model names (skip header line)
-    $modelNames = ($listOut -split "`n" | Select-Object -Skip 1 | ForEach-Object {
-        ($_ -split '\s+')[0]
-    } | Where-Object { $_ -and $_ -notmatch '^\s*$' })
-
-    if (-not $modelNames -or $modelNames.Count -eq 0) {
-        Write-Host "  No Ollama models installed" -ForegroundColor Gray
-        return
-    }
-
-    Write-Host "  Pulling updates for $($modelNames.Count) model(s)..." -ForegroundColor Gray
-    $updatedCount = 0
-    $currentCount = 0
-
-    foreach ($model in $modelNames) {
-        Write-Host "    Pulling $model..." -ForegroundColor Gray
-        $pullOut = (ollama pull $model 2>&1 | Out-String).Trim()
-        if ($pullOut -match '(?i)up to date') {
-            $currentCount++
-        } else {
-            $updatedCount++
-        }
-    }
-
-    Write-Host "  $updatedCount updated, $currentCount already current" -ForegroundColor Gray
 }
 
 # ── PowerShell modules / PSResources ─────────────────────────────────────────────
@@ -1194,14 +1694,16 @@ Invoke-Update -Name 'pwsh-resources' -Title 'PowerShell Modules / Resources' -Di
                     if ($using:supportsAcceptLicense) { $psrArgs['AcceptLicense'] = $true }
                     try { Update-PSResource @psrArgs 2>&1 | Out-Null } catch { }
                 } -ThrottleLimit 4
-            } else {
+            }
+            else {
                 foreach ($resource in $resources) {
                     $psrArgs = @{ Name = $resource.Name; ErrorAction = 'SilentlyContinue' }
                     if ($supportsAcceptLicense) { $psrArgs['AcceptLicense'] = $true }
                     try { Update-PSResource @psrArgs 2>&1 | Out-Null } catch { }
                 }
             }
-        } else {
+        }
+        else {
             Write-Status 'No installed PSResources found' -Type Info
         }
     }
@@ -1219,7 +1721,8 @@ Invoke-Update -Name 'pwsh-resources' -Title 'PowerShell Modules / Resources' -Di
                 if ($supportsAcceptLicense) { $updateArgs['AcceptLicense'] = $true }
                 Update-Module @updateArgs 2>&1 | Out-Null
             }
-        } else {
+        }
+        else {
             Write-Status 'No installed PowerShellGet modules found' -Type Info
         }
     }
@@ -1236,101 +1739,130 @@ if ($SkipCleanup) {
     Write-Section 'System Cleanup'
     Write-Status 'Cleanup skipped (-SkipCleanup flag set)' -Type Info
     $updateResults.Skipped.Add([pscustomobject]@{ Name = 'cleanup'; Reason = 'flag' })
-} else {
+}
+elseif ($DryRun) {
+    Write-Host "  [DryRun] Would run: System Cleanup" -ForegroundColor DarkCyan
+}
+else {
 
-Write-Section 'System Cleanup'
+    Write-Section 'System Cleanup'
 
-# Temp files (older than 7 days)
-try {
-    $tempPath = $env:TEMP
-    if ($tempPath -and (Test-Path $tempPath) -and $tempPath -ne (Split-Path $tempPath -Qualifier)) {
-        if ($PSCmdlet.ShouldProcess($tempPath, 'Remove temp files older than 7 days')) {
-            $cutoff = (Get-Date).AddDays(-7)
-            Get-ChildItem -Path $tempPath -ErrorAction SilentlyContinue |
+    # Temp files (older than 7 days)
+    try {
+        $tempPath = $env:TEMP
+        if ($tempPath -and (Test-Path $tempPath) -and $tempPath -ne (Split-Path $tempPath -Qualifier)) {
+            if ($PSCmdlet.ShouldProcess($tempPath, 'Remove temp files older than 7 days')) {
+                $cutoff = (Get-Date).AddDays(-7)
+                Get-ChildItem -Path $tempPath -ErrorAction SilentlyContinue |
                 Where-Object { $_.LastWriteTime -lt $cutoff } |
                 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Status "Temp files cleared (older than 7 days)" -Type Success
+                Write-Status "Temp files cleared (older than 7 days)" -Type Success
+            }
         }
     }
-} catch {
-    Write-Status "Temp cleanup partially failed (normal)" -Type Warning
-}
-
-# DNS cache
-try {
-    Clear-DnsClientCache -ErrorAction SilentlyContinue
-    Write-Status "DNS cache flushed" -Type Success
-} catch {
-    Write-Status "DNS cache flush failed" -Type Warning
-}
-
-# Recycle Bin
-try {
-    if ($PSCmdlet.ShouldProcess('Recycle Bin', 'Empty')) {
-        Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-        Write-Status "Recycle Bin emptied" -Type Success
-    }
-} catch {
-    Write-Status "Recycle Bin cleanup failed" -Type Warning
-}
-
-# Crash dumps
-$crashDumpPath = Join-Path $env:LOCALAPPDATA 'CrashDumps'
-if (Test-Path $crashDumpPath) {
-    try {
-        $dumps = Get-ChildItem -Path $crashDumpPath -ErrorAction SilentlyContinue
-        if ($dumps) {
-            $dumps | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Status "Crash dumps cleared ($($dumps.Count) files)" -Type Success
-        }
-    } catch {
-        Write-Status "Crash dump cleanup failed" -Type Warning
-    }
-}
-
-# Windows Error Reporting queue (NEW)
-$werPath = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\WER\ReportQueue'
-if (Test-Path $werPath) {
-    try {
-        Get-ChildItem -Path $werPath -ErrorAction SilentlyContinue |
-            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Status "WER report queue cleared" -Type Success
-    } catch {
-        Write-Status "WER cleanup failed" -Type Warning
-    }
-}
-
-# Admin-only deep cleanup (opt-in via -DeepClean)
-if ($isAdmin -and $DeepClean) {
-    try {
-        Write-Host "  Cleaning WinSxS component store..." -ForegroundColor Gray
-        DISM /Online /Cleanup-Image /StartComponentCleanup 2>&1 | Out-Null
-        Write-Status "DISM component store cleaned" -Type Success
-    } catch {
-        Write-Status "DISM cleanup failed" -Type Warning
+    catch {
+        Write-Status "Temp cleanup partially failed (normal)" -Type Warning
     }
 
-    try {
-        Clear-DeliveryOptimizationCache -Force -ErrorAction SilentlyContinue
-        Write-Status "Delivery Optimization cache cleared" -Type Success
-    } catch {
-        Write-Status "Delivery Optimization cleanup failed" -Type Warning
-    }
-
-    # Prefetch cleanup (optional, rarely needed but useful on old HDDs)
-    $prefetchPath = 'C:\Windows\Prefetch'
-    if ((Test-Path $prefetchPath) -and -not $SkipDestructive) {
+    # Windows system temp (older than 7 days, admin only)
+    if ($isAdmin) {
         try {
-            Get-ChildItem -Path $prefetchPath -Filter '*.pf' -ErrorAction SilentlyContinue |
-                Remove-Item -Force -ErrorAction SilentlyContinue
-            Write-Status "Prefetch files cleared" -Type Success
-        } catch {
-            Write-Status "Prefetch cleanup failed (normal if Superfetch is disabled)" -Type Warning
+            $winTempPath = 'C:\Windows\Temp'
+            if (Test-Path $winTempPath) {
+                $cutoff = (Get-Date).AddDays(-7)
+                Get-ChildItem -Path $winTempPath -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -lt $cutoff } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Status "C:\Windows\Temp cleared (older than 7 days)" -Type Success
+            }
+        }
+        catch {
+            Write-Status "C:\Windows\Temp cleanup partially failed (normal)" -Type Warning
         }
     }
-}
 
-$updateResults.Success.Add('cleanup')
+    # DNS cache
+    try {
+        Clear-DnsClientCache -ErrorAction SilentlyContinue
+        Write-Status "DNS cache flushed" -Type Success
+    }
+    catch {
+        Write-Status "DNS cache flush failed" -Type Warning
+    }
+
+    # Recycle Bin
+    try {
+        if ($PSCmdlet.ShouldProcess('Recycle Bin', 'Empty')) {
+            Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+            Write-Status "Recycle Bin emptied" -Type Success
+        }
+    }
+    catch {
+        Write-Status "Recycle Bin cleanup failed" -Type Warning
+    }
+
+    # Crash dumps
+    $crashDumpPath = Join-Path $env:LOCALAPPDATA 'CrashDumps'
+    if (Test-Path $crashDumpPath) {
+        try {
+            $dumps = Get-ChildItem -Path $crashDumpPath -ErrorAction SilentlyContinue
+            if ($dumps) {
+                $dumps | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Status "Crash dumps cleared ($($dumps.Count) files)" -Type Success
+            }
+        }
+        catch {
+            Write-Status "Crash dump cleanup failed" -Type Warning
+        }
+    }
+
+    # Windows Error Reporting queue (NEW)
+    $werPath = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\WER\ReportQueue'
+    if (Test-Path $werPath) {
+        try {
+            Get-ChildItem -Path $werPath -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Status "WER report queue cleared" -Type Success
+        }
+        catch {
+            Write-Status "WER cleanup failed" -Type Warning
+        }
+    }
+
+    # Admin-only deep cleanup (opt-in via -DeepClean)
+    if ($isAdmin -and $DeepClean) {
+        try {
+            Write-Host "  Cleaning WinSxS component store..." -ForegroundColor Gray
+            DISM /Online /Cleanup-Image /StartComponentCleanup 2>&1 | Out-Null
+            Write-Status "DISM component store cleaned" -Type Success
+        }
+        catch {
+            Write-Status "DISM cleanup failed" -Type Warning
+        }
+
+        try {
+            Clear-DeliveryOptimizationCache -Force -ErrorAction SilentlyContinue
+            Write-Status "Delivery Optimization cache cleared" -Type Success
+        }
+        catch {
+            Write-Status "Delivery Optimization cleanup failed" -Type Warning
+        }
+
+        # Prefetch cleanup (optional, rarely needed but useful on old HDDs)
+        $prefetchPath = 'C:\Windows\Prefetch'
+        if ((Test-Path $prefetchPath) -and -not $SkipDestructive) {
+            try {
+                Get-ChildItem -Path $prefetchPath -Filter '*.pf' -ErrorAction SilentlyContinue |
+                Remove-Item -Force -ErrorAction SilentlyContinue
+                Write-Status "Prefetch files cleared" -Type Success
+            }
+            catch {
+                Write-Status "Prefetch cleanup failed (normal if Superfetch is disabled)" -Type Warning
+            }
+        }
+    }
+
+    $updateResults.Success.Add('cleanup')
 
 } # end -not $SkipCleanup
 
@@ -1343,10 +1875,16 @@ Write-Host (" UPDATE COMPLETE -- {0}" -f $duration.ToString('hh\:mm\:ss')) -Fore
 Write-Host "$('=' * 54)" -ForegroundColor Green
 
 if ($updateResults.Success.Count -gt 0) {
-    Write-Host "`n[OK] Succeeded ($($updateResults.Success.Count)): $($updateResults.Success -join ', ')" -ForegroundColor Green
+    Write-Host "`n[OK] Succeeded ($($updateResults.Success.Count))" -ForegroundColor Green
+    foreach ($name in $updateResults.Success) {
+        Write-Detail $name -Type Info
+    }
 }
 if ($updateResults.Failed.Count -gt 0) {
-    Write-Host "[X] Failed    ($($updateResults.Failed.Count)): $($updateResults.Failed -join ', ')" -ForegroundColor Red
+    Write-Host "[X] Failed    ($($updateResults.Failed.Count))" -ForegroundColor Red
+    foreach ($name in $updateResults.Failed) {
+        Write-Detail $name -Type Error
+    }
 }
 if ($updateResults.Skipped.Count -gt 0) {
     # Known opt-in items (Disabled when their flag is NOT passed, not via -SkipX)
@@ -1358,19 +1896,50 @@ if ($updateResults.Skipped.Count -gt 0) {
             'flag' {
                 if ($item.Name -in $optInNames) {
                     'opt-in: -Update{0}' -f ($item.Name -replace '\s', '')
-                } else {
+                }
+                else {
                     'flag: -Skip{0}' -f ($item.Name -replace '\s', '')
                 }
             }
-            'not installed'  { 'not installed' }
+            'not installed' { 'not installed' }
             'requires admin' { 'requires admin' }
-            'fast mode'      { 'fast mode' }
-            default          { $item.Reason }
+            'fast mode' { 'fast mode' }
+            default { $item.Reason }
         }
         '{0} ({1})' -f $item.Name, $label
     }
-    Write-Host "[!] Skipped   ($($updateResults.Skipped.Count)): $($skippedDisplay -join ', ')" -ForegroundColor Yellow
+    Write-Host "[!] Skipped   ($($updateResults.Skipped.Count))" -ForegroundColor Yellow
+    foreach ($item in $skippedDisplay) {
+        Write-Detail $item -Type Warning
+    }
 }
+
+# Per-section timing table
+if ($script:sectionTimings.Count -gt 0) {
+    Write-Host "`n  Section timings:" -ForegroundColor DarkGray
+    $script:sectionTimings.GetEnumerator() |
+    Sort-Object Value -Descending |
+    ForEach-Object {
+        Write-Host ("    {0,-30} {1,6:F1}s" -f $_.Key, $_.Value) -ForegroundColor DarkGray
+    }
+}
+
+# Completion notification
+try {
+    if (Get-Module -ListAvailable -Name BurntToast -ErrorAction SilentlyContinue) {
+        Import-Module BurntToast -ErrorAction SilentlyContinue
+        $successCount = $updateResults.Success.Count
+        $failCount = $updateResults.Failed.Count
+        $msg = if ($failCount -gt 0) { "$successCount updated, $failCount failed" } else { "$successCount components updated" }
+        New-BurntToastNotification -Text 'Update-Everything', $msg -ErrorAction SilentlyContinue
+    }
+    else {
+        [System.Console]::Beep(880, 200)
+        Start-Sleep -Milliseconds 50
+        [System.Console]::Beep(1100, 300)
+    }
+}
+catch { }
 
 Write-Host ""
 
@@ -1388,7 +1957,7 @@ if ($WhatChanged -and (Test-Path $script:WingetSnapshotCurrent) -and (Test-Path 
                 # winget list columns are variable-width; extract the last two non-empty tokens as Id and Version
                 $tokens = $trimmed -split '\s{2,}' | Where-Object { $_ }
                 if ($tokens.Count -ge 3) {
-                    $id  = $tokens[-2].Trim()
+                    $id = $tokens[-2].Trim()
                     $ver = $tokens[-1].Trim()
                     if ($id -match '^\S+\.\S+$') { $map[$id] = $ver }
                 }
@@ -1405,7 +1974,8 @@ if ($WhatChanged -and (Test-Path $script:WingetSnapshotCurrent) -and (Test-Path 
         foreach ($id in $currMap.Keys) {
             if (-not $prevMap.ContainsKey($id)) {
                 $changes += "  + $id $($currMap[$id]) (new)"
-            } elseif ($prevMap[$id] -ne $currMap[$id]) {
+            }
+            elseif ($prevMap[$id] -ne $currMap[$id]) {
                 $changes += "  ~ $id $($prevMap[$id]) -> $($currMap[$id])"
             }
         }
@@ -1417,14 +1987,17 @@ if ($WhatChanged -and (Test-Path $script:WingetSnapshotCurrent) -and (Test-Path 
 
         if ($changes.Count -eq 0) {
             Write-Host "  No package changes detected." -ForegroundColor Gray
-        } else {
+        }
+        else {
             Write-Host "  $($changes.Count) change(s) detected:" -ForegroundColor Cyan
             $changes | ForEach-Object { Write-Host $_ -ForegroundColor Gray }
         }
-    } catch {
+    }
+    catch {
         Write-Status "WhatChanged diff failed: $_" -Type Warning
     }
-} elseif ($WhatChanged) {
+}
+elseif ($WhatChanged) {
     Write-Host "`n[!] No previous snapshot found for comparison. Run the script once without -WhatChanged first." -ForegroundColor Yellow
 }
 

@@ -1,8 +1,33 @@
+<!-- markdownlint-configure-file {"MD024": {"siblings_only": true}} -->
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [2.6.2] — 2026-03-19
+
+### Fixed
+
+- **WSL result handling** — a failed or timed-out distro update now marks the WSL section as failed instead of incorrectly reporting success
+- **WSL platform errors** — `wsl --update` now checks its exit code and fails the section when the platform update itself errors
+- **Dry-run safety** — `-DryRun` no longer runs cleanup tasks or writes winget snapshot state
+
+### Changed
+
+- README refreshed for current script behavior, version, and newer switches (`-NoParallel`, `-DryRun`, tool-specific skip flags)
+
+## [2.5.0] — 2026-03-16
+
+### Added
+
+- **Smart unknown-version package upgrades** — detects apps whose installed version winget cannot determine (e.g. Node.js, Everything, ImageMagick, Stella) and upgrades them only when a new Available version appears in the winget catalog. Tracks state in `%LOCALAPPDATA%\Update-Everything\unknown_versions.json` to avoid unnecessary reinstalls. Replaces the need for Patch My PC Home Updater.
+- **Winget source refresh** (`winget source update`) before upgrade passes to ensure the package catalog is current
+
+### Changed
+
+- Pending-check listing now includes `--include-unknown` so pre-hooks fire for unknown-version packages too
 
 ## [2.2.0] — 2026-03-04
 

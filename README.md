@@ -2,7 +2,7 @@
 
 A comprehensive, all-in-one PowerShell script that updates **everything** on your Windows system in a single run — package managers, system components, development tools, and more.
 
-![PowerShell](https://img.shields.io/badge/PowerShell-7%2B-blue?logo=powershell) ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.2.0-orange)
+![PowerShell](https://img.shields.io/badge/PowerShell-7%2B-blue?logo=powershell) ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.6.2-orange)
 
 <p align="center">
   <img src="assets/demo-banner.svg" alt="Update-Everything — terminal demo" width="820">
@@ -35,7 +35,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 |---|---|
 | **Windows Update** | Installs all non-driver updates via PSWindowsUpdate with retry logic for 0x800704c7 errors |
 | **Microsoft Store Apps** | Triggers Store app update scans via MDM/CIM |
-| **WSL** | Updates the WSL kernel and optionally runs `apt-get upgrade` / `pacman -Syu` / `zypper update` inside each distro |
+| **WSL** | Updates the WSL kernel and optionally runs `apt-get upgrade` / `pacman -Syu` / `zypper update` inside each distro, failing the section if any distro errors or times out |
 | **Microsoft Defender** | Updates antivirus signatures |
 
 ### Development Tools
@@ -46,7 +46,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 | **pnpm** | Updates global pnpm packages |
 | **Bun** | Self-upgrades Bun |
 | **Deno** | Self-upgrades Deno (detects Scoop/winget-managed installs) |
-| **Python / pip** | Upgrades pip itself (auto-detects Python install location) |
+| **Python / pip** | Upgrades pip itself and all outdated global pip packages (auto-detects Python install location) |
 | **uv** | Self-updates the uv package manager |
 | **uv tools** | Upgrades all uv-managed tool installs |
 | **Rust / rustup** | Runs `rustup update` |
@@ -55,7 +55,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 | **.NET tools** | Updates all global .NET tools, checks NuGet API for latest versions |
 | **.NET workloads** | Runs `dotnet workload update` |
 | **GitHub CLI extensions** | Runs `gh extension upgrade --all` |
-| **VS Code extensions** | Runs `code --update-extensions` |
+| **VS Code extensions** | Runs the VS Code CLI shim (`code.cmd` / `code-insiders.cmd`) to update extensions without launching the UI |
 | **pipx** | Upgrades all pipx-managed Python CLI tools |
 | **Poetry** | Self-updates Poetry |
 | **Composer** | Self-updates Composer and global PHP packages |
@@ -84,7 +84,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 
 ## Requirements
 
-- **PowerShell 7+** (recommended for `-Parallel` support; falls back to Windows PowerShell)
+- **PowerShell 7+** (recommended for parallel dev-tool updates and `-Parallel` support; falls back to Windows PowerShell)
 - **Administrator** privileges for: Windows Update, Chocolatey, WSL, Defender, Store apps, DISM cleanup
 - **PSWindowsUpdate** module for Windows Update (`Install-Module PSWindowsUpdate -Force`)
 
@@ -170,6 +170,16 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YoshKoz/windows-update
 | `-Schedule` | Switch | `$false` | Register a daily scheduled task |
 | `-ScheduleTime` | String | `"03:00"` | Time for the scheduled task |
 | `-LogPath` | String | | Path to write a transcript log file |
+| `-SkipNode` | Switch | `$false` | Skip Node.js ecosystem updates (`npm`, `pnpm`, `bun`, `deno`, `fnm`, `volta`) |
+| `-SkipRust` | Switch | `$false` | Skip Rust toolchain updates |
+| `-SkipGo` | Switch | `$false` | Skip Go toolchain updates |
+| `-SkipFlutter` | Switch | `$false` | Skip Flutter SDK updates |
+| `-SkipGitLFS` | Switch | `$false` | Skip Git LFS updates |
+| `-DeepClean` | Switch | `$false` | Run DISM, Delivery Optimization cleanup, and prefetch cleanup |
+| `-UpdateOllamaModels` | Switch | `$false` | Opt in to updating every installed Ollama model |
+| `-WhatChanged` | Switch | `$false` | Show winget package version changes since the previous run |
+| `-NoParallel` | Switch | `$false` | Disable parallel execution for independent dev-tool updates |
+| `-DryRun` | Switch | `$false` | Print which sections would run without executing them |
 
 ---
 
@@ -186,7 +196,8 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YoshKoz/windows-update
 5. **Automatic retry** — Failed winget packages are detected by parsing output and retried individually with `--force`.
 6. **Windows Update resilience** — Uses `-IgnoreReboot` to prevent `0x800704c7` (ERROR_CANCELLED), with automatic service restart and retry.
 7. **Clean output** — ANSI escape sequences, progress bars, and spinner frames are stripped from tool output for clean terminal display.
-8. **Summary report** — At the end, a color-coded summary shows succeeded, failed, and skipped components with total elapsed time.
+8. **Accurate failure reporting** — Per-distro WSL failures and timeouts now bubble up to the main summary instead of being shown as success.
+9. **Summary report** — At the end, a color-coded summary shows succeeded, failed, and skipped components with total elapsed time and per-section timings.
 
 ---
 
@@ -200,7 +211,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YoshKoz/windows-update
 
 ```
 ======================================================
-  Update-Everything v2.2.0  |  2026-03-04 14:30
+  Update-Everything v2.6.2  |  2026-03-19 14:30
   Running as Administrator
 ======================================================
 
