@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.6.3] — 2026-03-23
+
+### Fixed
+
+- **Winget pending parsing** — long package names no longer disappear from the preflight upgrade list or update summary when winget collapses table spacing
+- **WSL broken-distro reporting** — distro startup failures are now detected before package-manager probing, so broken VHDX mounts report as WSL reachability failures instead of misleading `apt`/`pacman` errors
+- **WSL sudo hangs** — distro package updates now use non-interactive sudo checks and fail fast with a warning when a password prompt would block the run
+
+### Changed
+
+- Final summary once again distinguishes `updated`, `checked`, `failed`, and `skipped` sections instead of collapsing everything non-failed into a single bucket
+
 ## [2.6.2] — 2026-03-19
 
 ### Fixed

@@ -2,7 +2,7 @@
 
 A comprehensive, all-in-one PowerShell script that updates **everything** on your Windows system in a single run — package managers, system components, development tools, and more.
 
-![PowerShell](https://img.shields.io/badge/PowerShell-7%2B-blue?logo=powershell) ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.6.2-orange)
+![PowerShell](https://img.shields.io/badge/PowerShell-7%2B-blue?logo=powershell) ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.6.3-orange)
 
 <p align="center">
   <img src="assets/demo-banner.svg" alt="Update-Everything — terminal demo" width="820">
@@ -25,7 +25,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 
 | Manager | What it does |
 |---|---|
-| **Winget** | Upgrades all packages (winget + MS Store sources) with timeout protection, automatic retry of failed packages |
+| **Winget** | Upgrades all packages (winget + MS Store sources) with timeout protection, automatic retry of failed packages, and more reliable long-name package detection |
 | **Scoop** | Updates all buckets and packages, cleans up old versions and cache |
 | **Chocolatey** | Upgrades all packages (requires admin) |
 
@@ -35,7 +35,7 @@ irm https://raw.githubusercontent.com/YoshKoz/windows-update-script/main/install
 |---|---|
 | **Windows Update** | Installs all non-driver updates via PSWindowsUpdate with retry logic for 0x800704c7 errors |
 | **Microsoft Store Apps** | Triggers Store app update scans via MDM/CIM |
-| **WSL** | Updates the WSL kernel and optionally runs `apt-get upgrade` / `pacman -Syu` / `zypper update` inside each distro, failing the section if any distro errors or times out |
+| **WSL** | Updates the WSL kernel and optionally runs `apt-get upgrade` / `pacman -Syu` / `zypper update` inside each distro, preflighting broken distros and skipping non-interactive `sudo` prompts instead of hanging |
 | **Microsoft Defender** | Updates antivirus signatures |
 
 ### Development Tools
@@ -197,7 +197,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YoshKoz/windows-update
 6. **Windows Update resilience** — Uses `-IgnoreReboot` to prevent `0x800704c7` (ERROR_CANCELLED), with automatic service restart and retry.
 7. **Clean output** — ANSI escape sequences, progress bars, and spinner frames are stripped from tool output for clean terminal display.
 8. **Accurate failure reporting** — Per-distro WSL failures and timeouts now bubble up to the main summary instead of being shown as success.
-9. **Summary report** — At the end, a color-coded summary shows succeeded, failed, and skipped components with total elapsed time and per-section timings.
+9. **Summary report** — At the end, a color-coded summary shows updated, checked, failed, and skipped components with total elapsed time and per-section timings.
 
 ---
 
@@ -211,7 +211,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YoshKoz/windows-update
 
 ```
 ======================================================
-  Update-Everything v2.6.2  |  2026-03-19 14:30
+  Update-Everything v2.6.3  |  2026-03-23 16:30
   Running as Administrator
 ======================================================
 
