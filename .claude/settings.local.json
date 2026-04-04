@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -Command \"[System.IO.Directory]::Exists\\(''C:\\\\Windows\\\\Installer''\\)\")"
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -Command \"[System.IO.Directory]::Exists\\(''C:\\\\Windows\\\\Installer''\\)\")",
+      "WebSearch"
     ]
   }
 }
