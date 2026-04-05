@@ -7,7 +7,8 @@
 .VERSION
     5.0.0
 .NOTES
-    Run as Administrator for full functionality. Requires PowerShell 7+.
+    Run as Administrator for full functionality. PowerShell 7 is preferred,
+    but the script can fall back to Windows PowerShell 5.1-compatible paths.
 .EXAMPLE
     .\updatescript.ps1
     .\updatescript.ps1 -FastMode
@@ -143,7 +144,8 @@ if (-not $isAdmin -and $AutoElevate -and -not $NoElevate) {
         if ($entry.Value -is [switch]) { if ($entry.Value.IsPresent) { "-$($entry.Key)" } }
         elseif ($null -ne $entry.Value -and "$($entry.Value)".Length -gt 0) { "-$($entry.Key)"; [string]$entry.Value }
     }
-    $shell = (Get-Command pwsh.exe -EA SilentlyContinue)?.Source ?? 'powershell.exe'
+    $pwshCommand = Get-Command pwsh.exe -EA SilentlyContinue
+    if ($pwshCommand -and $pwshCommand.Source) { $shell = $pwshCommand.Source } else { $shell = 'powershell.exe' }
     try { Start-Process -FilePath $shell -Verb RunAs -ArgumentList (@('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath) + @($forwardedArgs)) -Wait; exit }
     catch { Write-Warning 'Could not elevate. Continuing without Administrator privileges.' }
 } elseif (-not $isAdmin -and -not $NoElevate) {
@@ -152,7 +154,8 @@ if (-not $isAdmin -and $AutoElevate -and -not $NoElevate) {
 
 if ($Schedule) {
     if (-not $isAdmin -and -not $script:IsSimulation) { throw 'Scheduled task registration requires Administrator.' }
-    $shell   = (Get-Command pwsh.exe -EA SilentlyContinue)?.Source ?? 'powershell.exe'
+    $pwshCommand = Get-Command pwsh.exe -EA SilentlyContinue
+    if ($pwshCommand -and $pwshCommand.Source) { $shell = $pwshCommand.Source } else { $shell = 'powershell.exe' }
     $taskArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-SkipReboot','-NoPause')
     if ($script:IsSimulation) { Write-Host "  [DryRun] Would register 'DailySystemUpdate' at $ScheduleTime" -ForegroundColor DarkCyan }
     elseif ($PSCmdlet.ShouldProcess('DailySystemUpdate', "Register scheduled task for $ScheduleTime")) {
@@ -209,17 +212,17 @@ function Invoke-WingetUpgradeHook {
 }
 
 function Get-VSCodeCliPath {
-    $candidates = @(
+    $candidates = @((
         (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\bin\code.cmd'),
         (Join-Path $env:ProgramFiles  'Microsoft VS Code\bin\code.cmd'),
         (Join-Path ${env:ProgramFiles(x86)} 'Microsoft VS Code\bin\code.cmd'),
         (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code Insiders\bin\code-insiders.cmd'),
         (Join-Path $env:ProgramFiles  'Microsoft VS Code Insiders\bin\code-insiders.cmd')
-    ) | Where-Object { $_ -and (Test-Path $_) }
+    ) | Where-Object { $_ -and (Test-Path $_) })
     if ($candidates.Count -gt 0) { return $candidates[0] }
     foreach ($name in 'code.cmd','code-insiders.cmd') {
         $cmd = Get-Command $name -EA SilentlyContinue
-        if ($cmd?.Source -and (Test-Path $cmd.Source)) { return $cmd.Source }
+        if ($cmd -and $cmd.Source -and (Test-Path $cmd.Source)) { return $cmd.Source }
     }
     return $null
 }
@@ -332,8 +335,8 @@ function Invoke-WingetWithTimeout {
         $stdout  = Get-Content -Raw -Path $stdoutFile -Encoding UTF8 -EA SilentlyContinue
         $stderr  = Get-Content -Raw -Path $stderrFile -Encoding UTF8 -EA SilentlyContinue
         $combined = (($stdout + $stderr) -replace '\x00', '').Trim()
-        # Strip progress bar lines — split on \r too since winget uses carriage returns for in-place updates
-        $combined = (($combined -split '\r\n|\r|\n') | Where-Object { $_ -notmatch '^[\s█░▒▓]+\s*\d+%\s*$' }) -join "`n"
+        # Strip progress bar lines - split on `r too since winget uses carriage returns for in-place updates
+        $combined = (($combined -split '\r\n|\r|\n') | Where-Object { $_ -notmatch '^[\s\p{S}\p{P}]*\d+%\s*$' }) -join "`n"
         return [pscustomobject]@{ Output = $combined; ExitCode = $proc.ExitCode }
     } finally {
         Remove-Item $stdoutFile, $stderrFile -Force -EA SilentlyContinue
@@ -501,7 +504,7 @@ function Invoke-Update {
 # Each job captures Write-Host output (with color) to a temp file; the main
 # thread replays them in order once all jobs finish.
 
-# Build init script once — serializes helper functions into each runspace
+# Build init script once - serializes helper functions into each runspace
 $script:BatchInitScript = [scriptblock]::Create((
     @('Write-FilteredOutput','Write-Detail','Write-Status','Write-Log','Invoke-StreamingCapture',
       'Read-CapturedOutput','Get-ToolInstallManager','Test-Command','Normalize-PackageName',
@@ -516,6 +519,48 @@ function Invoke-UpdateBatch {
         [Parameter(Mandatory)][hashtable[]]$Tasks,
         [int]$ThrottleLimit = 4
     )
+
+    function Process-UpdateBatchResult {
+        param(
+            [Parameter(Mandatory)]$Info,
+            $Result
+        )
+
+        $sectionTitle = $Info.Task.Name
+        if ($Result -and $Result.PSObject.Properties['Title'] -and -not [string]::IsNullOrWhiteSpace([string]$Result.Title)) {
+            $sectionTitle = [string]$Result.Title
+        }
+        Write-Section $sectionTitle
+
+        if (Test-Path $Info.OutFile) {
+            foreach ($raw in (Get-Content $Info.OutFile -Encoding UTF8)) {
+                $idx = $raw.IndexOf("`t")
+                if ($idx -gt 0 -and $idx -le 2 -and $raw.Substring(0, $idx) -match '^\d+$') {
+                    Write-Host $raw.Substring($idx + 1) -ForegroundColor ([System.ConsoleColor][int]$raw.Substring(0, $idx))
+                } else { Write-Host $raw }
+            }
+            Remove-Item $Info.OutFile -Force -EA SilentlyContinue
+        }
+
+        if (-not $Result) {
+            Write-Status "$($Info.Task.Name): no result returned" -Type Warning
+            $updateResults.Checked.Add($Info.Task.Name)
+        } elseif ($Result.Error) {
+            Write-Status "$($Result.Name) failed: $($Result.Error)" -Type Error
+            $updateResults.Failed.Add($Result.Name)
+            $updateResults.Details[$Result.Name] = $Result.Error
+        } elseif ($Result.Changed) {
+            $e = [math]::Round($Result.Elapsed, 1).ToString('F1', [cultureinfo]::InvariantCulture)
+            Write-Status "$($Result.Name) updated (${e}s)" -Type Success
+            $updateResults.Success.Add($Result.Name)
+            $updateResults.Details[$Result.Name] = $Result.Message
+        } else {
+            if ($Result.Message) { Write-Detail $Result.Message -Type Muted }
+            $updateResults.Checked.Add($Result.Name)
+            $updateResults.Details[$Result.Name] = $Result.Message
+        }
+        if ($Result) { $script:SectionTimings[$Result.Name] = $Result.Elapsed }
+    }
 
     # Evaluate skip conditions before spawning any jobs
     $active = foreach ($t in $Tasks) {
@@ -532,6 +577,56 @@ function Invoke-UpdateBatch {
     if (-not $active) { return }
 
     $initScript = $script:BatchInitScript
+    $workerScript = {
+        param($task, $outFile, $logFile, $cfg)
+        $script:LogFile  = $logFile
+        $script:Config   = $cfg
+        $commandCache    = @{}
+
+        # Shadow Write-Host to capture colored output to a file
+        function Write-Host {
+            param($Object = '', $ForegroundColor, $BackgroundColor, [switch]$NoNewline)
+            $c = if ($ForegroundColor -is [System.ConsoleColor]) { [int]$ForegroundColor }
+                 elseif ($ForegroundColor) { try { [int][System.ConsoleColor]$ForegroundColor } catch { 7 } }
+                 else { 7 }
+            [System.IO.File]::AppendAllText($outFile, "$c`t$Object`n", [System.Text.Encoding]::UTF8)
+        }
+
+        $script:stepChanged = $false
+        $script:stepMessage = ''
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $errMsg = $null
+        try {
+            $actionBlock = [scriptblock]::Create($task.Action.ToString())
+            & $actionBlock
+            Complete-StepState
+        }
+        catch { $errMsg = $_.Exception.Message }
+
+        [pscustomobject]@{
+            Name    = $task.Name
+            Title   = if ($task.Title) { $task.Title } else { $task.Name }
+            Changed = $script:stepChanged
+            Message = $script:stepMessage
+            Error   = $errMsg
+            Elapsed = $sw.Elapsed.TotalSeconds
+        }
+    }
+
+    if (-not (Get-Command Start-ThreadJob -EA SilentlyContinue)) {
+        try { Import-Module ThreadJob -EA SilentlyContinue | Out-Null } catch {}
+    }
+    $canUseThreadJobs = [bool](Get-Command Start-ThreadJob -EA SilentlyContinue)
+
+    if (-not $canUseThreadJobs) {
+        foreach ($task in $active) {
+            $outFile = [System.IO.Path]::GetTempFileName()
+            $info = [pscustomobject]@{ OutFile = $outFile; Task = $task }
+            $result = & $workerScript $task $outFile $script:LogFile $script:Config
+            Process-UpdateBatchResult -Info $info -Result $result
+        }
+        return
+    }
 
     # Launch all jobs
     $jobInfos = foreach ($task in $active) {
@@ -539,37 +634,7 @@ function Invoke-UpdateBatch {
         $logFile  = $script:LogFile
         $cfg      = $script:Config
 
-        $job = Start-ThreadJob -ThrottleLimit $ThrottleLimit -InitializationScript $initScript -ArgumentList $task, $outFile, $logFile, $cfg -ScriptBlock {
-            param($task, $outFile, $logFile, $cfg)
-            $script:LogFile  = $logFile
-            $script:Config   = $cfg
-            $commandCache    = @{}
-
-            # Shadow Write-Host to capture coloured output to a file
-            function Write-Host {
-                param($Object = '', $ForegroundColor, $BackgroundColor, [switch]$NoNewline)
-                $c = if ($ForegroundColor -is [System.ConsoleColor]) { [int]$ForegroundColor }
-                     elseif ($ForegroundColor) { try { [int][System.ConsoleColor]$ForegroundColor } catch { 7 } }
-                     else { 7 }
-                [System.IO.File]::AppendAllText($outFile, "$c`t$Object`n", [System.Text.Encoding]::UTF8)
-            }
-
-            $script:stepChanged = $false
-            $script:stepMessage = ''
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            $errMsg = $null
-            try   { & $task.Action; Complete-StepState }
-            catch { $errMsg = $_.Exception.Message }
-
-            [pscustomobject]@{
-                Name    = $task.Name
-                Title   = if ($task.Title) { $task.Title } else { $task.Name }
-                Changed = $script:stepChanged
-                Message = $script:stepMessage
-                Error   = $errMsg
-                Elapsed = $sw.Elapsed.TotalSeconds
-            }
-        }
+        $job = Start-ThreadJob -ThrottleLimit $ThrottleLimit -InitializationScript $initScript -ArgumentList $task, $outFile, $logFile, $cfg -ScriptBlock $workerScript
         [pscustomobject]@{ Job = $job; OutFile = $outFile; Task = $task }
     }
 
@@ -579,37 +644,7 @@ function Invoke-UpdateBatch {
     foreach ($info in $jobInfos) {
         $result = Receive-Job $info.Job -EA SilentlyContinue
         Remove-Job $info.Job -Force
-
-        Write-Section ($result?.Title ?? $info.Task.Name)
-
-        if (Test-Path $info.OutFile) {
-            foreach ($raw in (Get-Content $info.OutFile -Encoding UTF8)) {
-                $idx = $raw.IndexOf("`t")
-                if ($idx -gt 0 -and $idx -le 2 -and $raw.Substring(0, $idx) -match '^\d+$') {
-                    Write-Host $raw.Substring($idx + 1) -ForegroundColor ([System.ConsoleColor][int]$raw.Substring(0, $idx))
-                } else { Write-Host $raw }
-            }
-            Remove-Item $info.OutFile -Force -EA SilentlyContinue
-        }
-
-        if (-not $result) {
-            Write-Status "$($info.Task.Name): no result returned" -Type Warning
-            $updateResults.Checked.Add($info.Task.Name)
-        } elseif ($result.Error) {
-            Write-Status "$($result.Name) failed: $($result.Error)" -Type Error
-            $updateResults.Failed.Add($result.Name)
-            $updateResults.Details[$result.Name] = $result.Error
-        } elseif ($result.Changed) {
-            $e = [math]::Round($result.Elapsed, 1).ToString('F1', [cultureinfo]::InvariantCulture)
-            Write-Status "$($result.Name) updated (${e}s)" -Type Success
-            $updateResults.Success.Add($result.Name)
-            $updateResults.Details[$result.Name] = $result.Message
-        } else {
-            if ($result.Message) { Write-Detail $result.Message -Type Muted }
-            $updateResults.Checked.Add($result.Name)
-            $updateResults.Details[$result.Name] = $result.Message
-        }
-        if ($result) { $script:SectionTimings[$result.Name] = $result.Elapsed }
+        Process-UpdateBatchResult -Info $info -Result $result
     }
 }
 
@@ -685,7 +720,7 @@ Invoke-Update -Name 'WSL' -Title 'Windows Subsystem for Linux' -RequiresCommand 
 }
 
 # ==============================================================================
-# SYSTEM COMPONENTS — run in parallel
+# SYSTEM COMPONENTS - run in parallel
 # ==============================================================================
 
 Write-Host "`n[Parallel] Running system component updates..." -ForegroundColor DarkCyan
@@ -699,7 +734,7 @@ Invoke-UpdateBatch -ThrottleLimit 3 -Tasks @(
         Action         = {
             Import-Module PSWindowsUpdate
             $params = @{ Install = $true; AcceptAll = $true; NotCategory = 'Drivers'; IgnoreReboot = $true; RecurseCycle = 3; Verbose = $false; Confirm = $false }
-            $out = Read-CapturedOutput (Invoke-StreamingCapture { Get-WindowsUpdate @params }).OutputPath
+            $out = Read-CapturedOutput (Invoke-StreamingCapture ({ Get-WindowsUpdate @params }.GetNewClosure())).OutputPath
             if ($out -match 'No updates found|There are no applicable updates') { $script:stepMessage = 'already current' }
             else {
                 $script:stepChanged = $true; $script:stepMessage = 'Updated successfully'
@@ -739,7 +774,7 @@ Invoke-UpdateBatch -ThrottleLimit 3 -Tasks @(
 )
 
 # ==============================================================================
-# DEV TOOLS — independent tools run in parallel
+# DEV TOOLS - independent tools run in parallel
 # ==============================================================================
 
 Write-Host "`n[Parallel] Running dev tool updates..." -ForegroundColor DarkCyan
@@ -763,9 +798,9 @@ Invoke-UpdateBatch -ThrottleLimit $ParallelThrottle -Tasks @(
             $outdatedJson = Read-CapturedOutput (Invoke-StreamingCapture { npm outdated -g --json }).OutputPath
             if ($outdatedJson) {
                 $outdated = $outdatedJson | ConvertFrom-Json -EA SilentlyContinue
-                if ($outdated?.PSObject.Properties.Count -gt 0) {
+                if ($outdated -and $outdated.PSObject.Properties.Count -gt 0) {
                     $pkgs = $outdated.PSObject.Properties.Name
-                    $run  = Invoke-StreamingCapture { npm install -g $pkgs }
+                    $run  = Invoke-StreamingCapture ({ npm install -g $pkgs }.GetNewClosure())
                     if ($run.ExitCode -eq 0) { $script:stepChanged = $true; $script:stepMessage = "Updated $($pkgs.Count) package(s)" }
                     else { Write-Detail "npm package update failed" -Type Warning }
                 } else { $script:stepMessage = 'no global package updates' }
@@ -984,7 +1019,7 @@ Invoke-UpdateBatch -ThrottleLimit $ParallelThrottle -Tasks @(
         Action          = {
             $cli = Get-VSCodeCliPath
             if (-not $cli) { $script:stepMessage = 'VS Code not found'; return }
-            $out = Read-CapturedOutput (Invoke-StreamingCapture { & $cli --update-extensions }).OutputPath
+            $out = Read-CapturedOutput (Invoke-StreamingCapture ({ & $cli --update-extensions }.GetNewClosure())).OutputPath
             if ($out -match 'updated|installing') { $script:stepChanged = $true; $script:stepMessage = 'extensions updated' } else { $script:stepMessage = 'extensions checked' }
         }
     }
@@ -1055,13 +1090,13 @@ Invoke-Update -Name 'pip' -Title 'Python / pip' -Action {
 
     if ($batch.Count -eq 0) { Invoke-PipHealthCheck; $script:stepMessage = if ($failed.Count -gt 0) { "No pip packages updated; failed: $($failed -join ', ')" } else { 'no global pip package updates' }; return }
 
-    $run = Invoke-StreamingCapture { python -m pip install --upgrade --disable-pip-version-check --no-input $batch }
+    $run = Invoke-StreamingCapture ({ python -m pip install --upgrade --disable-pip-version-check --no-input $batch }.GetNewClosure())
     if ($run.ExitCode -eq 0) {
         foreach ($p in $batch) { $updated.Add($p) }
     } else {
         # Fallback: per-package to isolate failures
         foreach ($p in $batch) {
-            $r = Invoke-StreamingCapture { python -m pip install --upgrade --disable-pip-version-check --no-input $p }
+            $r = Invoke-StreamingCapture ({ python -m pip install --upgrade --disable-pip-version-check --no-input $p }.GetNewClosure())
             if ($r.ExitCode -eq 0) { $updated.Add($p) }
             else {
                 $failed.Add($p)
@@ -1112,7 +1147,7 @@ Invoke-Update -Name 'pwsh-resources' -Title 'PowerShell Modules / Resources' -Di
     if ((Test-Command 'Get-InstalledPSResource') -and (Test-Command 'Update-PSResource')) {
         $cmd   = Get-Command Update-PSResource -EA SilentlyContinue
         $splat = @{ Name = '*'; ErrorAction = 'SilentlyContinue' }
-        if ($cmd?.Parameters.ContainsKey('AcceptLicense')) { $splat.AcceptLicense = $true }
+        if ($cmd -and $cmd.Parameters.ContainsKey('AcceptLicense')) { $splat.AcceptLicense = $true }
         $before = @{}; @(Get-InstalledPSResource -EA SilentlyContinue) | ForEach-Object { $before[$_.Name] = [string]$_.Version }
         try { Update-PSResource @splat 2>&1 | Out-Null } catch { Write-Verbose "Update-PSResource: $($_.Exception.Message)" }
         @(Get-InstalledPSResource -EA SilentlyContinue) | ForEach-Object {
@@ -1124,7 +1159,7 @@ Invoke-Update -Name 'pwsh-resources' -Title 'PowerShell Modules / Resources' -Di
     if ((Test-Command 'Get-InstalledModule') -and (Test-Command 'Update-Module')) {
         $cmd   = Get-Command Update-Module -EA SilentlyContinue
         $splat = @{ ErrorAction = 'SilentlyContinue' }
-        if ($cmd?.Parameters.ContainsKey('AcceptLicense')) { $splat.AcceptLicense = $true }
+        if ($cmd -and $cmd.Parameters.ContainsKey('AcceptLicense')) { $splat.AcceptLicense = $true }
         $before = @{}; @(Get-InstalledModule -EA SilentlyContinue) | ForEach-Object { $before[$_.Name] = [string]$_.Version }
         try { Update-Module @splat 2>&1 | Out-Null } catch { Write-Verbose "Update-Module: $($_.Exception.Message)" }
         @(Get-InstalledModule -EA SilentlyContinue) | ForEach-Object {
